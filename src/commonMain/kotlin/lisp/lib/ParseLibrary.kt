@@ -1,6 +1,7 @@
 package lisp.lib
 
 import lisp.FunctionValue
+import lisp.ParamMeta
 import lisp.Position
 import lisp.Scope
 import lisp.coercion.coerceTo
@@ -8,6 +9,11 @@ import lisp.coercion.coerceTo
 object ParseLibrary: Library {
   override fun addLib(global: Scope) {
     global["parse/lines"] = object: FunctionValue {
+      override val name: String = "parse/lines"
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("raw", String::class, "string to be split into lines")
+      )
+
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 1) {
           pos.interpretFail("Expected only one argument to 'parse/lines'")
@@ -23,6 +29,11 @@ object ParseLibrary: Library {
     }
 
     global["parse/json"] = object: FunctionValue {
+      override val name: String = "parse/json"
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("raw", String::class, "string containing raw json")
+      )
+
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 1) {
           pos.interpretFail("Expected only one argument to 'parse/json'")

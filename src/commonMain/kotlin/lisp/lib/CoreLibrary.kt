@@ -1,8 +1,10 @@
 package lisp.lib
 
 import lisp.*
+import lisp.bytecode.BytecodeInterpreter
 import lisp.coercion.CoercionRegistry
 import lisp.coercion.coerceTo
+import kotlin.reflect.KClass
 
 interface Library {
   fun addLib(global: Scope)
@@ -33,160 +35,38 @@ object CoreLibrary: Library {
   override fun addLib(global: Scope) {
     global["cwd"] = File.base()
 
-    global["cd"] = object: MacroFunctionValue {
-      override fun call(interpreter: Interpreter, scope: Scope, args: List<Expression>, pos: Position): Any? {
+    global["include"] = object: SpecialFunctionValue {
+      override val name = "include"
+      override val params = listOf(ParamMeta("path", File::class, "path to file to include"))
+
+      override fun call(scope: Scope, args: List<Any?>, pos: Position): Any? {
         if (args.size != 1) {
-          pos.interpretFail("Invalid args to 'cd'")
-        }
-
-        val prev = scope.getGlobal("cwd")?.coerceTo(Path::class) ?: pos.interpretFail("Expected cwd to be a Path object")
-
-        val relative = interpreter.interpret(scope, args[0])?.coerceTo(Path::class) ?: pos.interpretFail("Expected first arg to cd to be a string")
-
-        val result = prev.resolve(relative)
-        scope.setGlobal("cwd", result)
-        return result
-      }
-    }
-
-    global["def"] = object: MacroFunctionValue {
-      override fun call(interpreter: Interpreter, scope: Scope, args: List<Expression>, pos: Position): Any? {
-        if (args.size != 2) {
-          pos.interpretFail("Invalid args to 'dev'")
-        }
-
-        val (name, body) = args
-
-        if (name !is VariableEx) {
-          name.pos.interpretFail("Expected variable declaration")
-        }
-
-        val value = interpreter.interpret(scope, body)
-
-        scope.define(name.name, value)
-        return value
-      }
-    }
-
-    global["fn"] = object: MacroFunctionValue {
-      override fun call(interpreter: Interpreter, scope: Scope, args: List<Expression>, pos: Position): Any? {
-        if (args.size != 2) {
-          pos.interpretFail("Invalid args to 'fn'")
-        }
-
-        val (vars, body) = args
-
-        if (vars !is ArrayEx) {
-          vars.pos.interpretFail("Expected arguments array for function")
-        }
-
-        val varNames = vars.body.map { ((it as? VariableEx) ?: it.pos.interpretFail("Expected variable declaration")).name }
-
-        return object: FunctionValue {
-          override fun call(args: List<Any?>, pos: Position): Any? {
-            val childScope = scope.child()
-
-            args.forEachIndexed { index, value ->
-              childScope["$index"] = value
-
-              if (index < varNames.size) {
-                childScope[varNames[index]] = value
-              }
-            }
-
-            childScope["*"] = args
-
-            return interpreter.interpret(childScope, body)
-          }
-        }
-      }
-    }
-
-    global["defn"] = object: MacroFunctionValue {
-      override fun call(interpreter: Interpreter, scope: Scope, args: List<Expression>, pos: Position): Any? {
-        if (args.size != 3) {
-          pos.interpretFail("Invalid args to 'defn'")
-        }
-
-        val (name, vars, body) = args
-
-        return interpreter.interpret(scope,
-          CallEx(listOf(OperatorEx("def", pos), name, CallEx(listOf(OperatorEx("fn", pos), vars, body), pos)), pos)
-        )
-      }
-    }
-
-    global["let"] = object : MacroFunctionValue {
-      override fun call(interpreter: Interpreter, scope: Scope, args: List<Expression>, pos: Position): Any? {
-        if (args.size != 2) {
-          pos.interpretFail("Invalid args to 'let'")
-        }
-
-        val (declares, body) = args
-
-        if (declares !is MapEx) {
-          declares.pos.interpretFail("Expected map of variables")
-        }
-
-        val childScope = scope.child()
-
-        declares.body.forEach { (keyEx, valEx) ->
-          if (keyEx !is VariableEx) {
-            keyEx.pos.interpretFail("Expected variable declaration")
-          }
-
-          childScope[keyEx.name] = interpreter.interpret(childScope, valEx)
-        }
-
-        return interpreter.interpret(childScope, body)
-      }
-    }
-
-    global["if"] = object : MacroFunctionValue {
-      override fun call(interpreter: Interpreter, scope: Scope, args: List<Expression>, pos: Position): Any? {
-        if (args.size != 3) {
-          pos.interpretFail("Invalid args to 'if'")
-        }
-
-        val (condition, thenEx, elseEx) = args
-
-        val maybeBool = interpreter.interpret(scope, condition)?.coerceTo(Boolean::class) ?: condition.pos.interpretFail("Expected if condition to be boolean")
-
-        return if (maybeBool) {
-          interpreter.interpret(scope, thenEx)
-        } else {
-          interpreter.interpret(scope, elseEx)
-        }
-      }
-    }
-
-    global["do"] = object: FunctionValue {
-      override fun call(args: List<Any?>, pos: Position): Any? {
-        return args.lastOrNull()
-      }
-    }
-
-    global["include"] = object: MacroFunctionValue {
-      override fun call(interpreter: Interpreter, scope: Scope, args: List<Expression>, pos: Position): Any? {
-        val params = args.map { interpreter.interpret(scope, it) }
-
-        if (params.size != 1) {
           pos.interpretFail("Expected include to have exactly 1 argument")
         }
 
-        val include = params.single()?.coerceTo(File::class) ?: pos.interpretFail("Expected first argument to include to be a file")
+        val evaluator = scope.getGlobal("(evaluator)") as Evaluator
+        val file = args[0] as File
 
-        if (include.exists()) {
-          val raw = include.readText()
+        if (file.exists()) {
+          val raw = file.readText()
+          val moduleScope = global.child(ScopeKind.module)
 
-          return interpreter.evaluate(scope, raw, include.toString())
+          evaluator.evaluate(moduleScope, raw, file.toString())
+
+          // slap all values into the current module scope
+          moduleScope.all().forEach { (key, value) -> scope.define(key, value) }
+
+          return null
         } else {
-          pos.interpretFail("Could not include from path - no such file '${include}' exists")
+          pos.interpretFail("Could not include from path - no such file '${file}' exists")
         }
       }
     }
 
     global["as"] = object: FunctionValue {
+      override val name: String = "as"
+      override val params: List<ParamMeta> = listOf(ParamMeta("typeName", String::class, "name of type to coerce to"), ParamMeta("value", Any::class, "value to coerce"))
+
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 2) {
           pos.interpretFail("Expected as to have exactly 2 arguments")
@@ -205,6 +85,9 @@ object CoreLibrary: Library {
     }
 
     global["is"] = object: FunctionValue {
+      override val name: String = "is"
+      override val params: List<ParamMeta> = listOf(ParamMeta("typeName", String::class, "name of type to check for"), ParamMeta("value", Any::class, "value to check"))
+
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 2) {
           pos.interpretFail("Expected is to have exactly 2 arguments")
@@ -222,58 +105,9 @@ object CoreLibrary: Library {
       }
     }
 
-    global["call"] = object: MacroFunctionValue {
-      override fun call(interpreter: Interpreter, scope: Scope, args: List<Expression>, pos: Position): Any? {
-        val params = args.map { interpreter.interpret(scope, it) }
-
-        if (params.size != 2) {
-          pos.interpretFail("Expected exactly 2 arguments to 'call'")
-        }
-
-        val (func, metaArgsRaw) = params
-
-        val metaArgs = metaArgsRaw?.coerceTo(List::class) ?: pos.interpretFail("call expected second argument to be array")
-
-        return when (func) {
-          is MacroFunctionValue -> {
-            // Calling a macro dynamically is weird. We can't pass the genuine syntax since it's dynamic
-            // so instead we hack it - make a new scope and create vars for all the args and pass that
-            // the macro is tricked into thinking all of it's args are just variables, which should
-            // work most of the time. Obviously not always, but using call on 'defn', 'if' or something like that
-            // would be really weird and not at all helpful. This is mostly so that it will work on commands
-            // that need to be macros to get access to scope but not anything else
-            val childScope = scope.child()
-            var index = 0
-
-            val varArgs = metaArgs.map {
-              // var names have () in them to make them totally unrepresentable in syntax.
-              // brackets, quotes and whitespace are the only illegal values in an identifier
-              val hiddenName = "(hidden${index})"
-              childScope[hiddenName] = it
-              index++
-              VariableEx(hiddenName, pos)
-            }
-
-            func.call(interpreter, childScope, varArgs, pos)
-          }
-          is FunctionValue -> func.call(metaArgs, args[0].pos)
-          else -> pos.interpretFail("call expected first argument to be function")
-        }
-      }
-    }
-
-    global["\\"] = object: MacroFunctionValue, OperatorFunctionValue {
-      override val op: String = "\\"
-
-      override fun call(interpreter: Interpreter, scope: Scope, args: List<Expression>, pos: Position): Any? {
-        return interpreter.interpret(scope,
-          CallEx(listOf(OperatorEx("fn", pos), ArrayEx(emptyList(), pos), CallEx(args, pos)), pos)
-        )
-      }
-    }
-
     global["&"] = object : FunctionValue, OperatorFunctionValue {
-      override val op: String = "&"
+      override val name: String = "&"
+      override val params: List<ParamMeta> = emptyList()
 
       override fun call(args: List<Any?>, pos: Position): Any? {
         return args.joinToString("")
@@ -281,7 +115,8 @@ object CoreLibrary: Library {
     }
 
     global["+"] = object : FunctionValue, OperatorFunctionValue {
-      override val op: String = "+"
+      override val name: String = "+"
+      override val params: List<ParamMeta> = emptyList()
 
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 2) {
@@ -299,7 +134,8 @@ object CoreLibrary: Library {
     }
 
     global["-"] = object : FunctionValue, OperatorFunctionValue {
-      override val op: String = "-"
+      override val name: String = "-"
+      override val params: List<ParamMeta> = emptyList()
 
       override fun call(args: List<Any?>, pos: Position): Any? {
         return when (args.size) {
@@ -326,7 +162,8 @@ object CoreLibrary: Library {
     }
 
     global["*"] = object : FunctionValue, OperatorFunctionValue {
-      override val op: String = "*"
+      override val name: String = "*"
+      override val params: List<ParamMeta> = emptyList()
 
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 2) {
@@ -344,7 +181,8 @@ object CoreLibrary: Library {
     }
 
     global["/"] = object : FunctionValue, OperatorFunctionValue {
-      override val op: String = "/"
+      override val name: String = "/"
+      override val params: List<ParamMeta> = emptyList()
 
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 2) {
@@ -361,7 +199,8 @@ object CoreLibrary: Library {
     }
 
     global["=="] = object : FunctionValue, OperatorFunctionValue {
-      override val op: String = "=="
+      override val name: String = "=="
+      override val params: List<ParamMeta> = emptyList()
 
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 2) {
@@ -375,7 +214,8 @@ object CoreLibrary: Library {
     }
 
     global["!="] = object : FunctionValue, OperatorFunctionValue {
-      override val op: String = "!="
+      override val name: String = "!="
+      override val params: List<ParamMeta> = emptyList()
 
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 2) {
@@ -389,7 +229,8 @@ object CoreLibrary: Library {
     }
 
     global["<"] = object : FunctionValue, OperatorFunctionValue {
-      override val op: String = "<"
+      override val name: String = "<"
+      override val params: List<ParamMeta> = emptyList()
 
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 2) {
@@ -408,7 +249,8 @@ object CoreLibrary: Library {
     }
 
     global["<="] = object : FunctionValue, OperatorFunctionValue {
-      override val op: String = "<="
+      override val name: String = "<="
+      override val params: List<ParamMeta> = emptyList()
 
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 2) {
@@ -427,7 +269,8 @@ object CoreLibrary: Library {
     }
 
     global[">"] = object : FunctionValue, OperatorFunctionValue {
-      override val op: String = ">"
+      override val name: String = ">"
+      override val params: List<ParamMeta> = emptyList()
 
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 2) {
@@ -446,7 +289,8 @@ object CoreLibrary: Library {
     }
 
     global[">="] = object : FunctionValue, OperatorFunctionValue {
-      override val op: String = ">="
+      override val name: String = ">="
+      override val params: List<ParamMeta> = emptyList()
 
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 2) {
@@ -465,7 +309,8 @@ object CoreLibrary: Library {
     }
 
     global["!"] = object : FunctionValue, OperatorFunctionValue {
-      override val op: String = "!"
+      override val name: String = "!"
+      override val params: List<ParamMeta> = emptyList()
 
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 1) {
@@ -477,48 +322,6 @@ object CoreLibrary: Library {
         return !value
       }
     }
-
-    global["&&"] = object : MacroFunctionValue, OperatorFunctionValue {
-      override val op: String = "&&"
-
-      override fun call(interpreter: Interpreter, scope: Scope, args: List<Expression>, pos: Position): Any? {
-        if (args.size != 2) {
-          pos.interpretFail("Invalid args to &&")
-        }
-
-        val (firstEx, secondEx) = args
-
-        val first = interpreter.interpret(scope, firstEx)?.coerceTo(Boolean::class) ?: pos.interpretFail("Invalid args to &&")
-
-        return if (first) {
-          interpreter.interpret(scope, secondEx)?.coerceTo(Boolean::class) ?: pos.interpretFail("Invalid args to &&")
-        } else {
-          false
-        }
-      }
-    }
-
-    global["||"] = object : MacroFunctionValue, OperatorFunctionValue {
-      override val op: String = "||"
-
-      override fun call(interpreter: Interpreter, scope: Scope, args: List<Expression>, pos: Position): Any? {
-        if (args.size != 2) {
-          pos.interpretFail("Invalid args to ||")
-        }
-
-        val (firstEx, secondEx) = args
-
-        val first = interpreter.interpret(scope, firstEx)?.coerceTo(Boolean::class) ?: pos.interpretFail("Invalid args to ||")
-
-        return if (first) {
-          true
-        } else {
-          interpreter.interpret(scope, secondEx)?.coerceTo(Boolean::class) ?: pos.interpretFail("Invalid args to ||")
-        }
-      }
-    }
-
-
   }
 
 

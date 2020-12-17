@@ -14,7 +14,7 @@ class Scope(private val kind: ScopeKind, private val parent: Scope?) {
     return when {
       content.containsKey(key) -> content[key]
       parent != null -> parent[key]
-      else -> throw InterpreterException("No such variable $key in scope")
+      else -> throw RuntimeException("No such variable $key in scope")
     }
   }
 
@@ -29,6 +29,8 @@ class Scope(private val kind: ScopeKind, private val parent: Scope?) {
   fun delete(key: String) {
     content.remove(key)
   }
+
+  fun all(): Set<Map.Entry<String, Any?>> = content.entries
 
   fun getGlobal(key: String): Any? {
     return if (kind == ScopeKind.global) {

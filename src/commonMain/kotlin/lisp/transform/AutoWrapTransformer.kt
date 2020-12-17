@@ -2,11 +2,12 @@ package lisp.transform
 
 import lisp.CallEx
 import lisp.Expression
+import lisp.VariableEx
 
 class AutoWrapTransformer : Transformer {
   override fun transform(src: List<Expression>): List<Expression> {
     if (src.isEmpty()) {
-      return src
+      return emptyList()
     }
 
     val head = src.first()

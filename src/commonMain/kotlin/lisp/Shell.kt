@@ -13,9 +13,7 @@ interface ShellInterface {
 
 }
 
-class Shell(private val sh: ShellInterface, command: Command) {
-
-  private val interpreter = Interpreter(command)
+class Shell(private val sh: ShellInterface, private val evaluator: Evaluator) {
 
   fun run() {
     val globalScope = CoreLibrary.coreLib()
@@ -23,11 +21,15 @@ class Shell(private val sh: ShellInterface, command: Command) {
     val resultScope = shellScope.child(ScopeKind.shell)
     val moduleScope = resultScope.child(ScopeKind.module)
 
+    globalScope.setGlobal("(evaluator)", evaluator)
+
     var resultIndex = 0
     var lineIndex = 0
     var exit = false
 
     shellScope["exit"] = object: FunctionValue {
+      override val name: String = "exit"
+      override val params: List<ParamMeta> = emptyList()
       override fun call(args: List<Any?>, pos: Position): Any? {
         exit = true
         return null
@@ -35,12 +37,16 @@ class Shell(private val sh: ShellInterface, command: Command) {
     }
 
     shellScope["echo"] = object: FunctionValue {
+      override val name: String = "echo"
+      override val params: List<ParamMeta> = emptyList()
       override fun call(args: List<Any?>, pos: Position): Any? {
         return args.joinToString(" ") { it.toString() }
       }
     }
 
     shellScope["clearResults"] = object: FunctionValue {
+      override val name: String = "clearResults"
+      override val params: List<ParamMeta> = emptyList()
       override fun call(args: List<Any?>, pos: Position): Any? {
         resultIndex = 0
         resultScope.clear()
@@ -49,6 +55,8 @@ class Shell(private val sh: ShellInterface, command: Command) {
     }
 
     shellScope["clearDefs"] = object: FunctionValue {
+      override val name: String = "clearDefs"
+      override val params: List<ParamMeta> = emptyList()
       override fun call(args: List<Any?>, pos: Position): Any? {
         resultIndex = 0
         resultScope.clear()
@@ -68,7 +76,7 @@ class Shell(private val sh: ShellInterface, command: Command) {
       try {
         lineIndex++
 
-        val result = interpreter.evaluate(moduleScope, nextLine, "shell$lineIndex", autoWrap = true)
+        val result = evaluator.evaluate(moduleScope, nextLine, "shell-$lineIndex", autoWrap = true)
 
         if (result != null && result != "") {
           val index = resultIndex

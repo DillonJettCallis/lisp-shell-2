@@ -1,14 +1,16 @@
 package lisp.lib
 
-import lisp.File
-import lisp.FunctionValue
-import lisp.Position
-import lisp.Scope
+import lisp.*
 import lisp.coercion.coerceTo
 
 object FileLibrary: Library {
   override fun addLib(global: Scope) {
     global["file"] = object: FunctionValue {
+      override val name: String = "file"
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("source", String::class, "file path")
+      )
+
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 1) {
           pos.interpretFail("Expected one argument to 'file'")
@@ -24,6 +26,11 @@ object FileLibrary: Library {
 
 
     global["file/isFile"] = object: FunctionValue {
+      override val name: String = "file/isFile"
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("file", File::class, "file to check")
+      )
+
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 1) {
           pos.interpretFail("Expected one argument to 'file/isFile'")
@@ -38,6 +45,11 @@ object FileLibrary: Library {
     }
 
     global["file/isDir"] = object: FunctionValue {
+      override val name: String = "file/isDir"
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("file", File::class, "file to check")
+      )
+
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 1) {
           pos.interpretFail("Expected one argument to 'path/isDir'")
@@ -52,6 +64,11 @@ object FileLibrary: Library {
     }
 
     global["file/exists"] = object: FunctionValue {
+      override val name: String = "file/exists"
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("file", File::class, "file to check")
+      )
+
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 1) {
           pos.interpretFail("Expected one argument to 'file/exists'")
@@ -66,6 +83,11 @@ object FileLibrary: Library {
     }
 
     global["file/list"] = object: FunctionValue {
+      override val name: String = "file/list"
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("file", File::class, "directory to list contents")
+      )
+
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 1) {
           pos.interpretFail("Expected one argument to 'file/list'")

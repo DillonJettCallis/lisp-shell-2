@@ -1,7 +1,6 @@
 package lisp.coercion
 
-import lisp.File
-import lisp.Path
+import lisp.*
 import kotlin.reflect.KClass
 
 object CoercionRegistry {
@@ -39,7 +38,11 @@ object CoercionRegistry {
 
     val mapper = getMapper(value::class as KClass<In>, target) ?: return null
 
-    return mapper(value)
+    return try {
+      mapper(value)
+    } catch (e: Exception) {
+      null
+    }
   }
 
   fun checkType(value: Any, target: String): Boolean {
@@ -48,17 +51,30 @@ object CoercionRegistry {
     return targetClass.isInstance(value)
   }
 
+  fun nameOfType(type: KClass<*>): String? = typeToName[type]
+
+  fun knownType(target: String): Boolean {
+    return nameToType.containsKey(target)
+  }
+
   init {
+    addType(Any::class, "Any")
     addType(Boolean::class, "Boolean")
     addType(String::class, "String")
     addType(Double::class, "Float")
     addType(Int::class, "Integer")
+    addType(KClass::class::class, "Type")
 
     addType(Path::class, "Path")
     addType(File::class, "File")
 
     addType(List::class, "Array")
     addType(Map::class, "Map")
+    addType(FunctionValue::class, "Function")
+
+    // type to string and back
+    coercers[CoercionKey(String::class, KClass::class::class)] = { nameToType[it]!! }
+    addCoercer(KClass::class::class, String::class) { typeToName[it]!! }
 
     // path, file, string
     addCoercer(String::class, Path::class, Path::from)
@@ -84,4 +100,17 @@ data class CoercionKey<K: Any, V: Any>(val src: KClass<K>, val dest: KClass<V>)
 
 inline fun <Target: Any> Any.coerceTo(target: KClass<Target>): Target? = CoercionRegistry.tryCoerce(this, target)
 
+fun List<Any?>.coerceAll(target: List<ParamMeta>, pos: Position): List<Any?> {
+  return mapIndexed { index, value ->
+    val meta = target.getOrNull(index)
+
+    if (meta == null || value == null) {
+      value
+    } else {
+      val (name, type, desc) = meta
+
+      CoercionRegistry.tryCoerce(value, type) ?: pos.interpretFail("Expected type ${type.coerceTo(String::class)} for field '$name'. Description: '$desc'")
+    }
+  }
+}
 

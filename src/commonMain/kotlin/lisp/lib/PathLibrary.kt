@@ -1,15 +1,17 @@
 package lisp.lib
 
-import lisp.FunctionValue
-import lisp.Path
-import lisp.Position
-import lisp.Scope
+import lisp.*
 import lisp.coercion.coerceTo
 
 object PathLibrary: Library {
 
   override fun addLib(global: Scope) {
     global["path"] = object: FunctionValue {
+      override val name: String = "path"
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("path", String::class, "raw path")
+      )
+
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 1) {
           pos.interpretFail("Expected one argument to 'path'")

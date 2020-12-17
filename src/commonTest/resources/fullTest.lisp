@@ -16,4 +16,19 @@
 
 (defn $feat [] (let {$cwd (path "C:\\Users\\Dillon\\Projects\\Scriptly")} (features)))
 
+(defn $feat [[$arg String 'first art'],
+                 [$thing Integer 'second arg'],
+                 [$action Function 'A function from x -> y']]
+  ($action $arg $thing)
+)
+
+(defn $feat [$arg, $thing, $action]
+  (do
+    (assertType $arg String 'first art'),
+    (assertType $thing Integer 'second arg'),
+    (assertType $action Function 'A function from x -> y')
+
+    ($action $arg $thing)
+  )
+)
 

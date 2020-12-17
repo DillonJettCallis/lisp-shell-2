@@ -8,6 +8,8 @@ data class Position(val line: Int, val col: Int, val src: String) {
 
   fun parseFail(message: String, cause: Throwable? = null): Nothing = fail(::ParseException, message, cause)
 
+  fun compileFail(message: String, cause: Throwable? = null): Nothing = fail(::CompileException, message, cause)
+
   fun interpretFail(message: String, cause: Throwable? = null): Nothing = fail(::InterpreterException, message, cause)
 }
 
