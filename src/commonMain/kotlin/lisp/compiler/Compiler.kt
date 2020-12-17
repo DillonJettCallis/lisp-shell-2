@@ -23,6 +23,8 @@ class Compiler {
           is PopIr -> buffer += Bytecode.Pop
           is DupIr -> buffer += Bytecode.Dup
           is SwapIr -> buffer += Bytecode.Swap
+          is IncrementIr -> buffer += Bytecode.Increment
+          is DecrementIr -> buffer += Bytecode.Decrement
           is DefineIr -> {
             buffer += Bytecode.Define
             buffer.push(stringConstantMap.indexedAdd(ir.name))

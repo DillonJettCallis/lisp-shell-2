@@ -10,7 +10,7 @@ class CompilerTest {
 
   @Test
   fun irTest() {
-    val file = File.from("C:\\Users\\E455705\\projects\\lisp-shell-2\\src\\jvmTest\\resources\\compilerTest.lisp")
+    val file = File.from("src\\jvmTest\\resources\\compilerTest.lisp")
       .readText()
 
     val evaluator = BytecodeEvaluator(BytecodeInterpreter(JvmCommand()))

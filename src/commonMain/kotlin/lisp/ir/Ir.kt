@@ -13,6 +13,8 @@ sealed class Ir {
 data class PopIr(override val pos: Position): Ir()
 data class DupIr(override val pos: Position): Ir()
 data class SwapIr(override val pos: Position): Ir()
+data class IncrementIr(override val pos: Position): Ir()
+data class DecrementIr(override val pos: Position): Ir()
 data class DefineIr(val name: String, override val pos: Position): Ir()
 data class StoreIr(val name: String, override val pos: Position): Ir()
 data class LoadIr(val name: String, override val pos: Position): Ir()

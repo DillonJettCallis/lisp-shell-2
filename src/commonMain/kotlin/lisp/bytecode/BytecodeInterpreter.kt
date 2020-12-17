@@ -37,6 +37,14 @@ class BytecodeInterpreter(private val shell: Command) {
           stack.push(first)
           stack.push(second)
         }
+        Bytecode.Increment -> {
+          val last = stack.pop(func, index) as? Int ?: func.fail(index, "Attempt to increment value that was not an int")
+          stack.push(last + 1)
+        }
+        Bytecode.Decrement -> {
+          val last = stack.pop(func, index) as? Int ?: func.fail(index, "Attempt to decrement value that was not an int")
+          stack.push(last - 1)
+        }
         Bytecode.Define -> {
           val value = stack.pop(func, index)
           val name = func.getString(index, body[++index])
@@ -134,7 +142,11 @@ class BytecodeInterpreter(private val shell: Command) {
   private fun callFunction(callFunc: Any?, params: List<Any?>, scope: Scope, func: BytecodeFunction, pos: Position, index: Int): Any? {
     return when (callFunc) {
       is ClosureFunction -> interpret(callFunc.scope, callFunc.code, params.coerceAll(callFunc.code.params, pos))
-      is NativeFunction -> callFunc.call(params.coerceAll(callFunc.params, pos), pos)
+      is NativeFunction -> try {
+        callFunc.call(params.coerceAll(callFunc.params, pos), pos)
+      } catch (e: Exception) {
+        throw RuntimeException(e)
+      }
       is ShellFunction -> {
         val cwd = scope["cwd"]?.coerceTo(File::class) ?: func.fail(index, "Expected 'cwd' to be a file")
 

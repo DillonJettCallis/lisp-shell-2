@@ -12,4 +12,4 @@
   ($recurseFib 1, 1 [1, 1])
 ))
 
-(array/map($fib 10) (\ * $0 2))
+(array/flatMap ($fib 10) (\ do [$0 (* $0 2)]))

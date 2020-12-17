@@ -1,9 +1,6 @@
 package lisp.lib
 
-import lisp.FunctionValue
-import lisp.ParamMeta
-import lisp.Position
-import lisp.Scope
+import lisp.*
 import lisp.bytecode.ClosureFunction
 import lisp.coercion.coerceTo
 import lisp.compiler.Compiler
@@ -145,10 +142,8 @@ object ArrayLibrary: Library {
             CallIr(2, pos), // [array/(mutableAdd), res, mapper, nextBefore]
             CallIr(1, pos), // [array/(mutableAdd), res, nextAfter]
             CallIr(2, pos), // [res]
-            LoadIr("+", pos), // [res, +]
-            LoadIr("index", pos), // [res, +, index]
-            LoadConstIr(1, pos), // [res, +, index, 1]
-            CallIr(2, pos), // [res, index]
+            LoadIr("index", pos), // [res, index]
+            IncrementIr(pos), // [res, index]
             StoreIr("index", pos), // [res]
           ),
           pos = pos
@@ -163,32 +158,90 @@ object ArrayLibrary: Library {
       pos = pos
     )))
 
-    global["array/flatMap"] = object: FunctionValue {
-      override val name: String = "array/flatMap"
-      override val params: List<ParamMeta> = listOf(
-        ParamMeta("array", List::class, "array to loop"),
-        ParamMeta("mapper", FunctionValue::class, "function to do mapping")
+    global.compileNative(
+      name = "array/flatMap",
+      params = listOf(
+        ParamMeta("arr", List::class, "array to loop"),
+        ParamMeta("mapper", ClosureFunction::class, "function to do mapping")
       )
+    ) {
+      // init size for loop
+      load("array/size") // [array/size]
+      load("arr") // [array/size, arr]
+      call(1) // [size]
+      store("size") // []
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 2) {
-          pos.interpretFail("Expected two arguments to 'array/flatMap'")
+      // init index
+      loadConst(0) // [index]
+      store("index") // []
+
+      // build new array
+      load("array/(build)") // [array/(build)]
+      call(0) // [res]
+
+      loop {
+        condition {
+          // [res]
+
+          load("!=") // [res, !=]
+          load("index") // [res, !=, index]
+          load("size") // [res, !=, index, size])
+          call(2) // [res, isNotEqual])
         }
 
-        val (arrayRaw, func) = args
+        body {
+          load("as") // [res, as]
+          loadConst("Array") // [res, as, Array]
+          load("mapper") // [res, as, Array, mapper]
+          load("array/get") // [res, as, Array, mapper, array/get]
+          load("arr") // [res, as, Array, mapper, array/get, arr]
+          load("index") // [res, as, Array, mapper, array/get, arr, index]
+          dup() // [res, as, Array, mapper, array/get, arr, index, index]
+          inc() // [res, as, Array, mapper, array/get, arr, index, nextIndex]
+          store("index") // [res, as, Array, mapper, array/get, arr, index]
+          call(2) // [res, as, Array, mapper, nextBefore]
+          call(1) // [res, as, Array, nextMapped]
+          call(2) // [res, nextArray]
 
-        if (func !is FunctionValue) {
-          pos.interpretFail("Expected first argument to 'array/flatMap' to be mapper function")
-        }
+          loadConst(0) // [res, nextArray, 0]
+          store("innerIndex") // [res, nextArray]
+          dup() // [res, nextArray, nextArray]
+          store("nextArray") // [res, nextArray]
+          load("array/size") // [res, nextArray, array/size]
+          swap() // [res, array/size, nextArray]
+          call(1) // [res, innerSize]
+          store("innerSize") // [res]
 
-        val array = arrayRaw?.coerceTo(List::class) ?: pos.interpretFail("Expected second argument to 'array/flatMap' to be an array")
+          loop {
+            condition {
+              // [res]
 
-        return array.flatMap {
-          val out = func.call(listOf(it), pos)
+              load("!=") // [res, !=]
+              load("innerIndex") // [res, !=, innerIndex]
+              load("innerSize") // [res, !=, innerIndex, innerSize])
+              call(2) // [res, isNotEqual])
+            }
 
-          out?.coerceTo(List::class) ?: pos.interpretFail("Expected function of 'array/flatMap' to always return an array")
+            body {
+              // [res]
+
+              load("array/(mutableAdd)") // [res, array/(mutableAdd)]
+              swap() // [array/(mutableAdd), res]
+              load("array/get") // [array/(mutableAdd), res, array/get]
+              load("nextArray") // [array/(mutableAdd), res, array/get, nextArray]
+              load("innerIndex") // [array/(mutableAdd), res, array/get, nextArray, innerIndex]
+              dup() // [array/(mutableAdd), res, array/get, nextArray, innerIndex, innerIndex]
+              inc() // [array/(mutableAdd), res, array/get, nextArray, innerIndex, nextInnerIndex]
+              store("innerIndex") // [array/(mutableAdd), res, array/get, nextArray, innerIndex]
+              call(2) // [array/(mutableAdd), res, nextItem]
+              call(2) // [res]
+            }
+          }
         }
       }
+
+      // [res]
+      returnIr()
     }
 
     global["array/filter"] = object: FunctionValue {

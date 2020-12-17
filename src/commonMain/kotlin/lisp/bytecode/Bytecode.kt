@@ -41,6 +41,8 @@ enum class Bytecode {
   Pop, // (any)
   Dup, // (any)
   Swap, // (any, any)
+  Increment, // (int)
+  Decrement, // (int)
   Define, // (any) name const index
   Store, // (any) index
   Load, // () index

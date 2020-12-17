@@ -39,7 +39,7 @@ class IrCompiler {
             init += LoadIr("array/(mutableAdd)", pos) // push the add function onto the stack => [..,  arr, array/add]
             init += SwapIr(pos) // swap so the add is lower => [..,  array/add, arr]
             internalCompile(it, init) // push the next item on the stack => [.., array/add, arr, item]
-            init += CallIr(3, pos) // call add to push the new item into the array [.., arr]
+            init += CallIr(2, pos) // call add to push the new item into the array [.., arr]
           }
         }
       }
@@ -59,7 +59,7 @@ class IrCompiler {
             init += SwapIr(pos) // swap so the add is lower => [..,  map/add, map]
             internalCompile(key, init) // push the next key on the stack => [.., map/add, map, key]
             internalCompile(value, init) // push the next value on the stack =>  [.., map/add, map, key, value]
-            init += CallIr(4, pos) // call add to push the new pair into the map [.., map]
+            init += CallIr(3, pos) // call add to push the new pair into the map [.., map]
           }
         }
       }
