@@ -1,25 +1,25 @@
 package lisp.bytecode
 
-import lisp.*
-import lisp.coercion.coerceTo
+import lisp.Command
+import lisp.File
+import lisp.Position
+import lisp.Scope
 import lisp.coercion.coerceAll
+import lisp.coercion.coerceTo
 
 class BytecodeInterpreter(private val shell: Command) {
 
   private val codes = Bytecode.values()
 
-  fun interpret(parentScope: Scope, func: BytecodeFunction, args: List<Any?>): Any? {
+  fun interpret(scope: Scope, func: BytecodeFunction, args: Array<Any?>, closures: Array<Any?>): Any? {
     val body = func.code
     val size = body.size
-    val stack = ArrayList<Any?>()
-    val locals = parentScope.child()
+    val stack = ArrayList<Any?>(func.maxStack)
+    val locals = args.copyOf(func.maxLocals)
 
-    args.forEachIndexed { index, value ->
-      locals["$index"] = value
-
-      if (func.params.size > index) {
-        locals[func.params[index].name] = value
-      }
+    // copy closures into locals
+    if (closures.isNotEmpty()) {
+      closures.copyInto(locals, args.size)
     }
 
     var index = 0
@@ -49,18 +49,23 @@ class BytecodeInterpreter(private val shell: Command) {
           val value = stack.pop(func, index)
           val name = func.getString(index, body[++index])
 
-          parentScope.define(name, value)
+          scope.define(name, value)
         }
         Bytecode.Store -> {
           val value = stack.pop(func, index)
-          val name = func.getString(index, body[++index])
+          val localIndex = body[++index]
 
-          locals[name] = value
+          locals[localIndex] = value
         }
-        Bytecode.Load -> {
+        Bytecode.LoadLocal -> {
+          val localIndex = body[++index]
+
+          stack.push(locals[localIndex])
+        }
+        Bytecode.LoadScope -> {
           val name = func.getString(index, body[++index])
 
-          stack.push(locals[name])
+          stack.push(scope[name])
         }
         Bytecode.LoadNull -> stack.push(null)
         Bytecode.LoadTrue -> stack.push(true)
@@ -73,6 +78,8 @@ class BytecodeInterpreter(private val shell: Command) {
 
           stack.push(Double.fromBits(longValue))
         }
+        Bytecode.LoadRecurse -> stack.push(ClosureFunction(scope, closures, func))
+        Bytecode.LoadArgArray -> stack.push(args.toList())
         Bytecode.LoadConst -> stack.push(func.constants[body[++index]])
         Bytecode.Call -> {
           val pos = func.posArray[index]
@@ -82,7 +89,7 @@ class BytecodeInterpreter(private val shell: Command) {
           val params = (0 until argCount).map { stack.pop(func, initIndex) }.reversed()
           val callFunc = stack.pop(func, initIndex)
 
-          stack.push(callFunction(callFunc, params, locals, func, pos, initIndex))
+          stack.push(callFunction(callFunc, params, scope, func, pos, initIndex))
         }
         Bytecode.CallDynamic -> {
           val pos = func.posArray[index]
@@ -90,7 +97,7 @@ class BytecodeInterpreter(private val shell: Command) {
           val params = stack.pop(func, index)?.coerceTo(List::class) ?: func.fail(index, "Expected array of args passed to 'call' function")
           val callFunc = stack.pop(func, index)
 
-          stack.push(callFunction(callFunc, params, locals, func, pos, index))
+          stack.push(callFunction(callFunc, params, scope, func, pos, index))
         }
         Bytecode.Return -> return stack.pop(func, index)
         Bytecode.BuildShell -> {
@@ -99,9 +106,18 @@ class BytecodeInterpreter(private val shell: Command) {
           stack.push(ShellFunction(path))
         }
         Bytecode.BuildClosure -> {
-          val funcCall = func.constants[body[++index]] as BytecodeFunction
+          val startIndex = index
+          val closureSize = body[++index]
 
-          stack.push(ClosureFunction(locals, funcCall))
+          val closure = arrayOfNulls<Any?>(closureSize)
+
+          (0 until closureSize).forEach {
+            closure[it] = stack.pop(func, startIndex)
+          }
+
+          val funcCall = stack.pop(func, startIndex) as BytecodeFunction
+
+          stack.push(ClosureFunction(scope, closure, funcCall))
         }
         Bytecode.Jump -> {
           val initIndex = index
@@ -141,12 +157,12 @@ class BytecodeInterpreter(private val shell: Command) {
 
   private fun callFunction(callFunc: Any?, params: List<Any?>, scope: Scope, func: BytecodeFunction, pos: Position, index: Int): Any? {
     return when (callFunc) {
-      is ClosureFunction -> interpret(callFunc.scope, callFunc.code, params.coerceAll(callFunc.code.params, pos))
-      is NativeFunction -> try {
-        callFunc.call(params.coerceAll(callFunc.params, pos), pos)
-      } catch (e: Exception) {
-        throw RuntimeException(e)
+      is ClosureFunction -> {
+        val args = params.coerceAll(callFunc.code.params, pos).toTypedArray()
+
+        interpret(callFunc.scope, callFunc.code, args, callFunc.closure)
       }
+      is NativeFunction -> callFunc.call(params.coerceAll(callFunc.params, pos), pos)
       is ShellFunction -> {
         val cwd = scope["cwd"]?.coerceTo(File::class) ?: func.fail(index, "Expected 'cwd' to be a file")
 

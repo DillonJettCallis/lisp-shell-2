@@ -1,13 +1,10 @@
 package lisp
 
-import lisp.coercion.CoercionRegistry
-import lisp.coercion.coerceTo
-import lisp.transform.AutoWrapTransformer
-import lisp.transform.DefineTransformer
-import lisp.transform.Transformer
 import kotlin.reflect.KClass
 
-data class ParamMeta(val name: String, val type: KClass<*>, val desc: String)
+data class ParamMeta(val name: String, val type: KClass<*>, val desc: String) {
+  constructor(name: String): this(name, Any::class, "$name Any")
+}
 
 interface FunctionValue: SpecialFunctionValue {
   fun call(args: List<Any?>, pos: Position): Any?

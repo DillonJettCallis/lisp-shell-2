@@ -9,7 +9,7 @@ class IrFunctionBuilder(private val pos: Position) {
 
   private val body = ArrayList<Ir>()
 
-  val build: List<Ir>
+  val build: ArrayList<Ir>
     get() = body
 
   fun pop() {
@@ -48,6 +48,14 @@ class IrFunctionBuilder(private val pos: Position) {
     body += LoadConstIr(value, pos)
   }
 
+  fun increment() {
+    body += IncrementIr(pos)
+  }
+
+  fun decrement() {
+    body += DecrementIr(pos)
+  }
+
   fun call(paramCount: Int) {
     body += CallIr(paramCount, pos)
   }
@@ -83,8 +91,8 @@ class IrFunctionBuilder(private val pos: Position) {
 }
 
 class IrFunctionLoopBuilder(private val pos: Position) {
-  private var condition: List<Ir> = emptyList()
-  private var body: List<Ir> = emptyList()
+  private var condition: MutableList<Ir> = ArrayList()
+  private var body: MutableList<Ir> = ArrayList()
 
   infix fun condition(conditionBlock: IrFunctionBuilder.() -> Unit) {
     condition = IrFunctionBuilder(pos).also { conditionBlock(it) }.build
@@ -98,13 +106,13 @@ class IrFunctionLoopBuilder(private val pos: Position) {
 }
 
 
-fun Scope.compileNative(name: String, params: List<ParamMeta>, builder: IrFunctionBuilder.() -> Unit) {
+fun Scope.compileNative(name: String, params: MutableList<ParamMeta>, builder: IrFunctionBuilder.() -> Unit) {
   val pos = Position(0, 0, "$name <native code>")
-  val ir = IrFunctionBuilder(pos).also { builder(it) }.build
-  val compiler = Compiler()
+  val body = IrFunctionBuilder(pos).also { builder(it) }.build
 
-  val bytecode = compiler.compile(IrFunction(ir, params, pos))
+  val ir = IrCompiler().constructFunction(body, params, pos)
+  val bytecode = Compiler().compile(ir)
 
-  this[name] = ClosureFunction(this, bytecode)
+  this[name] = ClosureFunction(this, emptyArray(), bytecode)
 }
 

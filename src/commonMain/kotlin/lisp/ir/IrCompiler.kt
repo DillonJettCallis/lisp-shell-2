@@ -6,15 +6,39 @@ import kotlin.reflect.KClass
 
 class IrCompiler {
 
-  fun compileFunction(ex: Expression, params: List<ParamMeta> = emptyList()): IrFunction {
+  fun compileFunction(ex: Expression, params: MutableList<ParamMeta> = ArrayList()): IrFunction {
+    val body = compile(ex)
+    body += ReturnIr(ex.pos)
+
+    return constructFunction(body, params, ex.pos)
+  }
+
+  fun constructFunction(body: MutableList<Ir>, params: MutableList<ParamMeta>, pos: Position): IrFunction {
+    AnonArgumentRemover.resolve(body, params)
+    val context = ClosureChecker.check(body, params)
+
+    FreeFinder.addFrees(body, params)
+
     return IrFunction(
-      body = compile(ex) + ReturnIr(ex.pos),
+      body = body,
+      params = params,
+      pos = pos,
+      closureContext = context
+    )
+  }
+
+  private fun internalCompileFunction(ex: Expression, params: MutableList<ParamMeta>): IrFunction {
+    val body = compile(ex)
+    body += ReturnIr(ex.pos)
+
+    return IrFunction(
+      body = body,
       params = params,
       pos = ex.pos
     )
   }
 
-  private fun compile(ex: Expression): List<Ir> {
+  private fun compile(ex: Expression): MutableList<Ir> {
     return ArrayList<Ir>().also { internalCompile(ex, it) }
   }
 
@@ -95,18 +119,24 @@ class IrCompiler {
               declares.pos.compileFail("Expected first argument of let to be map of variable names to expressions")
             }
 
+            val letBody = ArrayList<Ir>()
+            val names = HashSet<String>()
+
             declares.body.forEach { (nameEx, content) ->
               if (nameEx !is VariableEx) {
                 nameEx.pos.compileFail("Expected to find variable name in let statement")
               }
               val name = nameEx.name
+              names += name
 
-              internalCompile(content, init)
+              internalCompile(content, letBody)
 
-              init += StoreIr(name, nameEx.pos)
+              letBody += StoreIr(name, nameEx.pos)
             }
 
-            internalCompile(body, init)
+            internalCompile(body, letBody)
+
+            init += letBody
           }
           "fn" -> {
             val (paramList, body) = tail
@@ -114,7 +144,7 @@ class IrCompiler {
             val params = if (paramList is ArrayEx) {
               paramList.body.map {
                 when (it) {
-                  is VariableEx -> ParamMeta(it.name, Any::class, "${it.name} Any")
+                  is VariableEx -> ParamMeta(it.name)
                   is ArrayEx -> {
                     if (it.body.isEmpty()) {
                       it.pos.compileFail("Expected variable declaration")
@@ -165,9 +195,9 @@ class IrCompiler {
               paramList.pos.compileFail("Expected first arg to fn to be an array of variable names")
             }
 
-            val func = compileFunction(body, params)
+            val func = internalCompileFunction(body, params.toMutableList())
 
-            init += BuildClosureIr(func, ex.pos)
+            init += LoadFuncIr(func, ex.pos)
           }
           "if" -> {
             val (conditionEx, thenEx) = tail
@@ -175,7 +205,7 @@ class IrCompiler {
             internalCompile(conditionEx, init)
 
             val thenBlock = compile(thenEx)
-            val elseBlock = if (tail.size == 3) compile(tail[2]) else emptyList()
+            val elseBlock = if (tail.size == 3) compile(tail[2]) else ArrayList()
 
             init += BranchIr(thenBlock, elseBlock, ex.pos)
           }
@@ -185,7 +215,7 @@ class IrCompiler {
             internalCompile(first, init)
             val whenFalse = compile(second)
 
-            init += BranchIr(emptyList(), whenFalse, ex.pos)
+            init += BranchIr(ArrayList(), whenFalse, ex.pos)
           }
           "&&" -> {
             val (first, second) = tail
@@ -193,7 +223,7 @@ class IrCompiler {
             internalCompile(first, init)
             val whenTrue = compile(second)
 
-            init += BranchIr(whenTrue, emptyList(), ex.pos)
+            init += BranchIr(whenTrue, ArrayList(), ex.pos)
           }
           "do" -> {
             // do is flattened out of existence and a pop added after all but the last expression

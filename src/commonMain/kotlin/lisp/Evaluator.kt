@@ -41,7 +41,7 @@ class BytecodeEvaluator(private val interpreter: BytecodeInterpreter, private va
 
     val compiled = Compiler().compile(ir)
 
-    return interpreter.interpret(scope, compiled, emptyList())
+    return interpreter.interpret(scope, compiled, emptyArray(), emptyArray())
   }
 }
 

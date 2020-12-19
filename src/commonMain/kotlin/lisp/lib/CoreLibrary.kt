@@ -1,10 +1,8 @@
 package lisp.lib
 
 import lisp.*
-import lisp.bytecode.BytecodeInterpreter
 import lisp.coercion.CoercionRegistry
 import lisp.coercion.coerceTo
-import kotlin.reflect.KClass
 
 interface Library {
   fun addLib(global: Scope)

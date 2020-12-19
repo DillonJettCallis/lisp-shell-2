@@ -4,10 +4,14 @@ import lisp.FunctionValue
 import lisp.ParamMeta
 import lisp.Position
 import lisp.Scope
+import lisp.ir.IrFunction
 
 class BytecodeFunction(
   val params: List<ParamMeta>,
   val code: IntArray,
+  val maxLocals: Int,
+  val maxStack: Int,
+  val ir: IrFunction,
   val posArray: Array<Position>,
   val constants: Array<Any>,
   val stringConstants: Array<String>
@@ -28,12 +32,100 @@ class BytecodeFunction(
       return stringConstants[index]
     }
   }
+
+  fun decompile(): String {
+    val bytecodes = Bytecode.values()
+    val buffer = StringBuilder()
+    var index = 0
+
+    while (index < code.size) {
+      val next = bytecodes[code[index++]]
+
+      when (next) {
+        Bytecode.NoOp -> buffer += "NoOp"
+        Bytecode.Pop -> buffer += "Pop"
+        Bytecode.Dup -> buffer += "Dup"
+        Bytecode.Swap -> buffer += "Swap"
+        Bytecode.Increment -> buffer += "Increment"
+        Bytecode.Decrement -> buffer += "Decrement"
+        Bytecode.Define -> {
+          val name = getString(index, code[index++])
+          buffer += "Define -> $name"
+        }
+        Bytecode.Store -> {
+          val slot = code[index++]
+          buffer += "Store -> $slot"
+        }
+        Bytecode.LoadLocal -> {
+          val slot = code[index++]
+          buffer += "LoadLocal -> $slot"
+        }
+        Bytecode.LoadScope -> {
+          val name = getString(index, code[index++])
+          buffer += "LoadScope -> $name"
+        }
+        Bytecode.LoadRecurse -> buffer += "LoadRecurse"
+        Bytecode.LoadArgArray -> buffer += "LoadArgArray"
+        Bytecode.LoadNull -> buffer += "LoadNull"
+        Bytecode.LoadTrue -> buffer += "LoadTrue"
+        Bytecode.LoadFalse -> buffer += "LoadFalse"
+        Bytecode.LoadInt -> {
+          val value = code[index++]
+          buffer += "LoadInt -> $value"
+        }
+        Bytecode.LoadDouble -> {
+          val top = code[index++]
+          val bottom = code[index++]
+          val longValue = top.toLong().shl(32) or bottom.toLong()
+
+          buffer += "LoadDouble -> ${Double.fromBits(longValue)}"
+        }
+        Bytecode.LoadConst -> {
+          val constIndex = code[index++]
+
+          buffer += "LoadConst -> $constIndex"
+        }
+        Bytecode.Call -> {
+          val argCount = code[index++]
+
+          buffer += "Call -> $argCount"
+        }
+        Bytecode.CallDynamic -> buffer += "CallDynamic"
+        Bytecode.Return -> buffer += "Return"
+        Bytecode.BuildShell -> {
+          val constIndex = code[index++]
+          buffer += "BuildShell -> $constIndex"
+        }
+        Bytecode.BuildClosure -> {
+          val argCount = code[index++]
+
+          buffer += "BuildClosure -> $argCount"
+        }
+        Bytecode.Jump -> {
+          val offset = code[index++]
+
+          buffer += "Jump -> $offset"
+        }
+        Bytecode.Branch -> {
+          val offset = code[index++]
+
+          buffer += "Branch -> $offset"
+        }
+      }
+    }
+
+    return buffer.toString()
+  }
+}
+
+inline operator fun StringBuilder.plusAssign(str: String) {
+  appendLine(str)
 }
 
 typealias NativeFunction = FunctionValue
 
-data class ShellFunction(val name: String)
-data class ClosureFunction(val scope: Scope, val code: BytecodeFunction)
+class ShellFunction(val name: String)
+class ClosureFunction(val scope: Scope, val closure: Array<Any?>, val code: BytecodeFunction)
 
 
 enum class Bytecode {
@@ -45,7 +137,10 @@ enum class Bytecode {
   Decrement, // (int)
   Define, // (any) name const index
   Store, // (any) index
-  Load, // () index
+  LoadLocal, // () local index
+  LoadScope, // () index of string const
+  LoadRecurse, //
+  LoadArgArray, //
   LoadNull, //
   LoadTrue, //
   LoadFalse, //
@@ -56,7 +151,7 @@ enum class Bytecode {
   CallDynamic, // (function, array of args)
   Return, // (any)
   BuildShell, // () shell const index
-  BuildClosure, // () function const index
+  BuildClosure, // () number of closure params
   Jump, // jump to index
   Branch, // (boolean) jump if FALSE! True will fall through
 }

@@ -5,11 +5,11 @@
       if
       (<= $end (array/size $prev) )
       $prev
-      ( let { $next (+ $first $second) } ( $recurseFib $second $next (array/add $prev $next) ) )
+      ( let { $next (+ $first $second) } ( $recurse $second $next (array/add $prev $next) ) )
     ))
   }
 
   ($recurseFib 1, 1 [1, 1])
 ))
 
-(array/flatMap ($fib 10) (\ do [$0 (* $0 2)]))
+(array/flatMap ($fib 10) (\ do [$1 (* $1 2)]))
