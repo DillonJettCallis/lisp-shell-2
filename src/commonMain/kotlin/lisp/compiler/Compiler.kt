@@ -269,7 +269,7 @@ class CompilerScope private constructor(
     get() = localCount
 
   val maxStack: Int
-    get() = stackSize
+    get() = maxStackSize
 
   fun store(name: String): Int {
     // if this var is known, use the same slot

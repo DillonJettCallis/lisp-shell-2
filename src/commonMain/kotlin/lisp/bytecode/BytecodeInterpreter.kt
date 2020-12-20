@@ -14,7 +14,7 @@ class BytecodeInterpreter(private val shell: Command) {
   fun interpret(scope: Scope, func: BytecodeFunction, args: Array<Any?>, closures: Array<Any?>): Any? {
     val body = func.code
     val size = body.size
-    val stack = ArrayList<Any?>(func.maxStack)
+    val stack = ArrayStack(func.maxStack)
     val locals = args.copyOf(func.maxLocals)
 
     // copy closures into locals
@@ -30,20 +30,20 @@ class BytecodeInterpreter(private val shell: Command) {
       when (next) {
         Bytecode.NoOp -> {} // do nothing
         Bytecode.Pop -> stack.pop(func, index)
-        Bytecode.Dup -> stack.push(stack.peek(func, index))
+        Bytecode.Dup -> stack.push(func, index, stack.peek(func, index))
         Bytecode.Swap -> {
           val first = stack.pop(func, index)
           val second = stack.pop(func, index)
-          stack.push(first)
-          stack.push(second)
+          stack.push(func, index, first)
+          stack.push(func, index, second)
         }
         Bytecode.Increment -> {
           val last = stack.pop(func, index) as? Int ?: func.fail(index, "Attempt to increment value that was not an int")
-          stack.push(last + 1)
+          stack.push(func, index, last + 1)
         }
         Bytecode.Decrement -> {
           val last = stack.pop(func, index) as? Int ?: func.fail(index, "Attempt to decrement value that was not an int")
-          stack.push(last - 1)
+          stack.push(func, index, last - 1)
         }
         Bytecode.Define -> {
           val value = stack.pop(func, index)
@@ -60,27 +60,27 @@ class BytecodeInterpreter(private val shell: Command) {
         Bytecode.LoadLocal -> {
           val localIndex = body[++index]
 
-          stack.push(locals[localIndex])
+          stack.push(func, index, locals[localIndex])
         }
         Bytecode.LoadScope -> {
           val name = func.getString(index, body[++index])
 
-          stack.push(scope[name])
+          stack.push(func, index, scope[name])
         }
-        Bytecode.LoadNull -> stack.push(null)
-        Bytecode.LoadTrue -> stack.push(true)
-        Bytecode.LoadFalse -> stack.push(false)
-        Bytecode.LoadInt -> stack.push(body[++index])
+        Bytecode.LoadNull -> stack.push(func, index, null)
+        Bytecode.LoadTrue -> stack.push(func, index, true)
+        Bytecode.LoadFalse -> stack.push(func, index, false)
+        Bytecode.LoadInt -> stack.push(func, index, body[++index])
         Bytecode.LoadDouble -> {
           val top = body[++index]
           val bottom = body[++index]
           val longValue = top.toLong().shl(32) or bottom.toLong()
 
-          stack.push(Double.fromBits(longValue))
+          stack.push(func, index, Double.fromBits(longValue))
         }
-        Bytecode.LoadRecurse -> stack.push(ClosureFunction(scope, closures, func))
-        Bytecode.LoadArgArray -> stack.push(args.toList())
-        Bytecode.LoadConst -> stack.push(func.constants[body[++index]])
+        Bytecode.LoadRecurse -> stack.push(func, index, ClosureFunction(scope, closures, func))
+        Bytecode.LoadArgArray -> stack.push(func, index, args.toList())
+        Bytecode.LoadConst -> stack.push(func, index, func.constants[body[++index]])
         Bytecode.Call -> {
           val pos = func.posArray[index]
           val initIndex = index
@@ -89,7 +89,7 @@ class BytecodeInterpreter(private val shell: Command) {
           val params = (0 until argCount).map { stack.pop(func, initIndex) }.reversed()
           val callFunc = stack.pop(func, initIndex)
 
-          stack.push(callFunction(callFunc, params, scope, func, pos, initIndex))
+          stack.push(func, initIndex, callFunction(callFunc, params, scope, func, pos, initIndex))
         }
         Bytecode.CallDynamic -> {
           val pos = func.posArray[index]
@@ -97,13 +97,13 @@ class BytecodeInterpreter(private val shell: Command) {
           val params = stack.pop(func, index)?.coerceTo(List::class) ?: func.fail(index, "Expected array of args passed to 'call' function")
           val callFunc = stack.pop(func, index)
 
-          stack.push(callFunction(callFunc, params, scope, func, pos, index))
+          stack.push(func, index, callFunction(callFunc, params, scope, func, pos, index))
         }
         Bytecode.Return -> return stack.pop(func, index)
         Bytecode.BuildShell -> {
           val path = func.getString(index, body[++index])
 
-          stack.push(ShellFunction(path))
+          stack.push(func, index, ShellFunction(path))
         }
         Bytecode.BuildClosure -> {
           val startIndex = index
@@ -117,7 +117,7 @@ class BytecodeInterpreter(private val shell: Command) {
 
           val funcCall = stack.pop(func, startIndex) as BytecodeFunction
 
-          stack.push(ClosureFunction(scope, closure, funcCall))
+          stack.push(func, index, ClosureFunction(scope, closure, funcCall))
         }
         Bytecode.Jump -> {
           val initIndex = index
@@ -174,24 +174,6 @@ class BytecodeInterpreter(private val shell: Command) {
     }
   }
 
-  private fun <Item> MutableList<Item>.pop(func: BytecodeFunction, index: Int): Item? {
-    if (isEmpty()) {
-      func.invalidBytecode(index)
-    } else {
-      return removeLast()
-    }
-  }
-
-  private fun <Item> MutableList<Item>.peek(func: BytecodeFunction, index: Int): Item? {
-    if (isEmpty()) {
-      func.invalidBytecode(index)
-    } else {
-      return last()
-    }
-  }
-
-  private fun <Item> MutableList<Item>.push(item: Item) = add(item)
-
   private fun Any?.stringify(func: BytecodeFunction, index: Int): String {
     return when(this) {
       null -> "null"
@@ -202,4 +184,33 @@ class BytecodeInterpreter(private val shell: Command) {
   }
 }
 
+// dead simple stack that does exactly what we want and nothing more
+class ArrayStack(size: Int) {
 
+  private val content = arrayOfNulls<Any?>(size)
+  private var index = 0
+
+  fun pop(func: BytecodeFunction, pos: Int): Any? {
+    if (pos == 0) {
+      func.invalidBytecode(pos)
+    } else {
+      return content[--index]
+    }
+  }
+
+  fun peek(func: BytecodeFunction, pos: Int): Any? {
+    if (pos == 0) {
+      func.invalidBytecode(pos)
+    } else {
+      return content[index - 1]
+    }
+  }
+
+  fun push(func: BytecodeFunction, pos: Int, item: Any?) {
+    if (index == content.size) {
+      func.invalidBytecode(pos)
+    } else {
+      content[index++] = item
+    }
+  }
+}
