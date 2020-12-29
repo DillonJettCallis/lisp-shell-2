@@ -1,10 +1,5 @@
 package lisp
 
-class ParseException(message: String, cause: Throwable? = null): RuntimeException(message, cause)
-class LexException(message: String, cause: Throwable? = null): RuntimeException(message, cause)
-class CompileException(message: String, cause: Throwable? = null): RuntimeException(message, cause)
-class InterpreterException(message: String, cause: Throwable? = null): RuntimeException(message, cause)
-
 class Parser(private val raw: List<Token>) {
 
   companion object {

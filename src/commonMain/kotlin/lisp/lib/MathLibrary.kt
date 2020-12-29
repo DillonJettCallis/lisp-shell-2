@@ -4,7 +4,7 @@ import lisp.FunctionValue
 import lisp.ParamMeta
 import lisp.Position
 import lisp.Scope
-import lisp.coercion.coerceTo
+import lisp.runtime.Type
 import kotlin.math.PI
 
 object MathLibrary: Library {
@@ -14,19 +14,15 @@ object MathLibrary: Library {
     global["math/divInt"] = object: FunctionValue {
       override val name: String = "math/divInt"
       override val params: List<ParamMeta> = listOf(
-        ParamMeta("dividend", Int::class, "base number to be divided"),
-        ParamMeta("divisor", Int::class, "number by which base is devided")
+        ParamMeta("dividend", Type.IntegerType, "base number to be divided"),
+        ParamMeta("divisor", Type.IntegerType, "number by which base is devided")
       )
 
       override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 2) {
-          pos.interpretFail("Expected exactly 2 arguments to math/divInt")
-        }
-
         val (firstRaw, secondRaw) = args
 
-        val first = firstRaw?.coerceTo(Int::class) ?: pos.interpretFail("Expected first arg to math/divInt to be integer")
-        val second = secondRaw?.coerceTo(Int::class) ?: pos.interpretFail("Expected second arg to math/divInt to be integer")
+        val first = firstRaw as Int
+        val second = secondRaw as Int
 
         return first / second
       }

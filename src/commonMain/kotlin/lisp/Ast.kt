@@ -11,7 +11,15 @@ data class Position(val line: Int, val col: Int, val src: String) {
   fun compileFail(message: String, cause: Throwable? = null): Nothing = fail(::CompileException, message, cause)
 
   fun interpretFail(message: String, cause: Throwable? = null): Nothing = fail(::InterpreterException, message, cause)
+
+  fun coerceFail(message: String, cause: Throwable? = null): Nothing = fail(::CoerceException, message, cause)
 }
+
+class ParseException(message: String, cause: Throwable? = null): RuntimeException(message, cause)
+class LexException(message: String, cause: Throwable? = null): RuntimeException(message, cause)
+class CompileException(message: String, cause: Throwable? = null): RuntimeException(message, cause)
+class InterpreterException(message: String, cause: Throwable? = null): RuntimeException(message, cause)
+class CoerceException(message: String, cause: Throwable? = null): RuntimeException(message, cause)
 
 sealed class Expression {
   abstract val pos: Position

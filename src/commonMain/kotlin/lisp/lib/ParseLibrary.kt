@@ -4,22 +4,18 @@ import lisp.FunctionValue
 import lisp.ParamMeta
 import lisp.Position
 import lisp.Scope
-import lisp.coercion.coerceTo
+import lisp.runtime.Type
 
 object ParseLibrary: Library {
   override fun addLib(global: Scope) {
     global["parse/lines"] = object: FunctionValue {
       override val name: String = "parse/lines"
       override val params: List<ParamMeta> = listOf(
-        ParamMeta("raw", String::class, "string to be split into lines")
+        ParamMeta("raw", Type.StringType, "string to be split into lines")
       )
 
       override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 1) {
-          pos.interpretFail("Expected only one argument to 'parse/lines'")
-        }
-
-        val raw = args.first()?.coerceTo(String::class) ?: pos.interpretFail("Expected string argument to 'parse/lines'")
+        val raw = args.first() as String
 
         return raw.splitToSequence("\n")
           .map { it.trim() }
@@ -31,15 +27,11 @@ object ParseLibrary: Library {
     global["parse/json"] = object: FunctionValue {
       override val name: String = "parse/json"
       override val params: List<ParamMeta> = listOf(
-        ParamMeta("raw", String::class, "string containing raw json")
+        ParamMeta("raw", Type.StringType, "string containing raw json")
       )
 
       override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 1) {
-          pos.interpretFail("Expected only one argument to 'parse/json'")
-        }
-
-        val raw = args.first()?.coerceTo(String::class) ?: pos.interpretFail("Expected string argument to 'parse/json'")
+        val raw = args.first() as String
 
         return JsonParser(raw).parseWhole()
       }

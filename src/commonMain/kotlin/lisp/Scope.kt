@@ -1,4 +1,5 @@
 package lisp
+
 enum class ScopeKind {
   global,
   shell,
@@ -12,6 +13,7 @@ class Scope(private val kind: ScopeKind, private val parent: Scope?) {
 
   operator fun get(key: String): Any? {
     return when {
+      key == "(scope)" -> this
       content.containsKey(key) -> content[key]
       parent != null -> parent[key]
       else -> throw RuntimeException("No such variable $key in scope")
@@ -55,6 +57,12 @@ class Scope(private val kind: ScopeKind, private val parent: Scope?) {
       parent?.define(key, value)
     }
   }
+
+  fun export(): Map<String, Any?> {
+    return HashMap(content)
+  }
+
+  fun global(): Scope = if (this.kind == ScopeKind.global) this else parent!!.global()
 
   fun child(kind: ScopeKind = ScopeKind.local): Scope = Scope(kind, this)
 

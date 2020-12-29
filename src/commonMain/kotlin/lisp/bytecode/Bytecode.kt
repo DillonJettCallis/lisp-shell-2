@@ -124,7 +124,11 @@ inline operator fun StringBuilder.plusAssign(str: String) {
 
 typealias NativeFunction = FunctionValue
 
-class ShellFunction(val name: String)
+class ShellFunction(val name: String) {
+  override fun toString(): String {
+    return name
+  }
+}
 class ClosureFunction(val scope: Scope, val closure: Array<Any?>, val code: BytecodeFunction)
 
 

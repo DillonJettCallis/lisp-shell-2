@@ -1,7 +1,7 @@
 package lisp.ir
 
 import lisp.*
-import lisp.coercion.coerceTo
+import lisp.runtime.Type
 import kotlin.reflect.KClass
 
 class IrCompiler {
@@ -158,16 +158,16 @@ class IrCompiler {
                       nameEx.name
                     }
 
-                    val type: KClass<*> = if (it.body.size > 1) {
+                    val type: Type = if (it.body.size > 1) {
                       val typeEx = it.body[1]
 
                       if (typeEx !is StringLiteralEx) {
                         typeEx.pos.compileFail("Expected variable type declaration")
                       } else {
-                        typeEx.value.coerceTo(KClass::class::class) ?: typeEx.pos.compileFail("Unknown type")
+                        Type.coerce(Type.TypeType, typeEx.value) as? Type ?: typeEx.pos.compileFail("Unknown type")
                       }
                     } else {
-                      Any::class
+                      Type.AnyType
                     }
 
                     val desc = if (it.body.size > 2) {

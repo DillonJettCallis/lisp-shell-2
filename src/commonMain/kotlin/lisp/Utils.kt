@@ -80,31 +80,15 @@ class IrFunctionBuilder(private val pos: Position) {
     )
   }
 
-  fun loop(loopBuilder: IrFunctionLoopBuilder.() -> Unit) {
-    val builder = IrFunctionLoopBuilder(pos)
-
-    loopBuilder(builder)
-
-    body += builder.build()
+  fun loop(conditionBlock: IrFunctionBuilder.() -> Unit, bodyBlock: IrFunctionBuilder.() -> Unit) {
+    body += LoopIr(
+      condition = IrFunctionBuilder(pos).also { conditionBlock(it) }.body,
+      body = IrFunctionBuilder(pos).also { bodyBlock(it) }.body,
+      pos = pos
+    )
   }
 
 }
-
-class IrFunctionLoopBuilder(private val pos: Position) {
-  private var condition: MutableList<Ir> = ArrayList()
-  private var body: MutableList<Ir> = ArrayList()
-
-  infix fun condition(conditionBlock: IrFunctionBuilder.() -> Unit) {
-    condition = IrFunctionBuilder(pos).also { conditionBlock(it) }.build
-  }
-
-  infix fun body(bodyBlock: IrFunctionBuilder.() -> Unit) {
-    body = IrFunctionBuilder(pos).also { bodyBlock(it) }.build
-  }
-
-  fun build() = LoopIr(condition, body, pos)
-}
-
 
 fun Scope.compileNative(name: String, params: MutableList<ParamMeta>, builder: IrFunctionBuilder.() -> Unit) {
   val pos = Position(0, 0, "$name <native code>")

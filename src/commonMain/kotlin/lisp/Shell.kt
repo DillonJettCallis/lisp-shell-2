@@ -1,7 +1,7 @@
 package lisp
 
-import lisp.coercion.coerceTo
 import lisp.lib.CoreLibrary
+import lisp.runtime.Type
 
 interface ShellInterface {
 
@@ -101,7 +101,7 @@ class Shell(private val sh: ShellInterface, private val evaluator: Evaluator) {
   }
 
   private fun cd(moduleScope: Scope): File {
-    return moduleScope["cwd"]?.coerceTo(File::class) ?: run {
+    return Type.coerce(Type.FileType, moduleScope["cwd"]) as? File ?: run {
       sh.writeln("\$cwd is not a file. Resetting \$cwd to current directory")
       val cwd = File.base()
       moduleScope.delete("cwd")

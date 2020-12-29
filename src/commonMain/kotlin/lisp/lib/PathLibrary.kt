@@ -1,7 +1,7 @@
 package lisp.lib
 
 import lisp.*
-import lisp.coercion.coerceTo
+import lisp.runtime.Type
 
 object PathLibrary: Library {
 
@@ -9,17 +9,11 @@ object PathLibrary: Library {
     global["path"] = object: FunctionValue {
       override val name: String = "path"
       override val params: List<ParamMeta> = listOf(
-        ParamMeta("path", String::class, "raw path")
+        ParamMeta("path", Type.StringType, "raw path")
       )
 
       override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 1) {
-          pos.interpretFail("Expected one argument to 'path'")
-        }
-
-        val (strRaw) = args
-
-        val str = strRaw?.coerceTo(String::class) ?: pos.interpretFail("Expected first argument to 'path' to be a string")
+        val str = args[0] as String
 
         return Path.from(str)
       }

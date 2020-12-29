@@ -4,8 +4,7 @@ import lisp.Command
 import lisp.File
 import lisp.Position
 import lisp.Scope
-import lisp.coercion.coerceAll
-import lisp.coercion.coerceTo
+import lisp.runtime.Type
 
 class BytecodeInterpreter(private val shell: Command) {
 
@@ -94,7 +93,7 @@ class BytecodeInterpreter(private val shell: Command) {
         Bytecode.CallDynamic -> {
           val pos = func.posArray[index]
 
-          val params = stack.pop(func, index)?.coerceTo(List::class) ?: func.fail(index, "Expected array of args passed to 'call' function")
+          val params = stack.pop(func, index) as? List<*> ?: func.fail(index, "Expected array of args passed to 'call' function")
           val callFunc = stack.pop(func, index)
 
           stack.push(func, index, callFunction(callFunc, params, scope, func, pos, index))
@@ -158,13 +157,13 @@ class BytecodeInterpreter(private val shell: Command) {
   private fun callFunction(callFunc: Any?, params: List<Any?>, scope: Scope, func: BytecodeFunction, pos: Position, index: Int): Any? {
     return when (callFunc) {
       is ClosureFunction -> {
-        val args = params.coerceAll(callFunc.code.params, pos).toTypedArray()
+        val args = Type.coerceAll(params, callFunc.code.params, pos).toTypedArray()
 
         interpret(callFunc.scope, callFunc.code, args, callFunc.closure)
       }
-      is NativeFunction -> callFunc.call(params.coerceAll(callFunc.params, pos), pos)
+      is NativeFunction -> callFunc.call(Type.coerceAll(params, callFunc.params, pos), pos)
       is ShellFunction -> {
-        val cwd = scope["cwd"]?.coerceTo(File::class) ?: func.fail(index, "Expected 'cwd' to be a file")
+        val cwd = Type.coerce(Type.FileType, scope["cwd"]) as? File ?: func.fail(index, "Expected 'cwd' to be a file")
 
         shell.execute(cwd, callFunc.name, params.map { it.stringify(func, index) })
       }
@@ -177,8 +176,7 @@ class BytecodeInterpreter(private val shell: Command) {
   private fun Any?.stringify(func: BytecodeFunction, index: Int): String {
     return when(this) {
       null -> "null"
-      is ShellFunction -> name
-      is BytecodeFunction, is NativeFunction -> func.fail(index, "Cannot render function to string")
+      is BytecodeFunction, is ClosureFunction, is NativeFunction -> func.fail(index, "Cannot render function to string")
       else -> toString()
     }
   }

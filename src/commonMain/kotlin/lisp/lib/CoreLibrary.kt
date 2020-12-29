@@ -1,8 +1,7 @@
 package lisp.lib
 
 import lisp.*
-import lisp.coercion.CoercionRegistry
-import lisp.coercion.coerceTo
+import lisp.runtime.Type
 
 interface Library {
   fun addLib(global: Scope)
@@ -33,73 +32,122 @@ object CoreLibrary: Library {
   override fun addLib(global: Scope) {
     global["cwd"] = File.base()
 
-    global["include"] = object: SpecialFunctionValue {
-      override val name = "include"
-      override val params = listOf(ParamMeta("path", File::class, "path to file to include"))
+    global["(import)"] = object: FunctionValue {
+      override val name = "(import)"
+      override val params = emptyList<ParamMeta>()
 
-      override fun call(scope: Scope, args: List<Any?>, pos: Position): Any? {
-        if (args.size != 1) {
-          pos.interpretFail("Expected include to have exactly 1 argument")
+      override fun call(args: List<Any?>, pos: Position): Any? {
+        if (args.size != 3) {
+          pos.interpretFail("Expected (import) to have exactly 3 arguments")
         }
 
-        val evaluator = scope.getGlobal("(evaluator)") as Evaluator
-        val file = args[0] as File
+        val (rawScope, rawEvaluator, rawFile) = args
 
-        if (file.exists()) {
-          val raw = file.readText()
-          val moduleScope = global.child(ScopeKind.module)
+        val scope = (rawScope as Scope)
+        val evaluator = rawEvaluator as Evaluator
+        val file = rawFile as File
 
-          evaluator.evaluate(moduleScope, raw, file.toString())
+        val fileContent = file.readText()
 
-          // slap all values into the current module scope
-          moduleScope.all().forEach { (key, value) -> scope.define(key, value) }
+        val moduleScope = scope.child(ScopeKind.module)
 
-          return null
-        } else {
-          pos.interpretFail("Could not include from path - no such file '${file}' exists")
-        }
+        evaluator.evaluate(moduleScope, fileContent, file.toString())
+
+        return moduleScope.export()
       }
+    }
+
+    global["(include)"] = object: FunctionValue {
+      override val name = "(include)"
+      override val params = emptyList<ParamMeta>()
+
+      override fun call(args: List<Any?>, pos: Position): Any? {
+        if (args.size != 2 && args.size != 3) {
+          pos.interpretFail("Expected (include) to have 2 or 3 arguments")
+        }
+
+        val scope = args[0] as Scope
+        val values = args[1] as HashMap<String, Any?>
+        val prefix = if (args.size == 3) args[2] as String else null
+
+        if (prefix == null) {
+          values.forEach { (key, value) -> scope.define(key, value) }
+        } else {
+          values.forEach { (key, value) -> scope.define("$prefix/$key", value) }
+        }
+
+        return null
+      }
+    }
+
+    global.compileNative(
+      name = "import",
+      params = arrayListOf(
+        ParamMeta("path", Type.FileType, "path to file to import")
+      )
+    ) {
+      load("(import)") // [(import)]
+      load("(scope)") // [(import), (scope)]
+      load("(evaluator)") // [(import), (scope), (evaluator)]
+      load("path") // [(import), (scope), (evaluator), path]
+      call(3) // [exports]
+      returnIr() // []
+    }
+
+    global.compileNative(
+      name = "include",
+      params = arrayListOf(
+        ParamMeta("path", Type.FileType, "path to file to include"),
+        ParamMeta("prefix", Type.StringType, "prefix is prepend to every included value")
+      )
+    ) {
+      load("(include)") // [(include)]
+      load("(scope)") // [(include), (scope)]
+      load("import") // [(include), (scope), import]
+      load("path") // [(include), (scope), import, path]
+      call(3) // [(include), (scope), exports]
+      load("prefix") // [(include), (scope), exports, prefix]
+      call(3) // [null]
+      returnIr() // []
     }
 
     global["as"] = object: FunctionValue {
       override val name: String = "as"
-      override val params: List<ParamMeta> = listOf(ParamMeta("typeName", String::class, "name of type to coerce to"), ParamMeta("value", Any::class, "value to coerce"))
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("type", Type.TypeType, "name of type to coerce to"),
+        ParamMeta("value", Type.AnyType, "value to coerce")
+      )
 
       override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 2) {
-          pos.interpretFail("Expected as to have exactly 2 arguments")
-        }
-
         val (typeNameRaw, value) = args
 
-        val typeName = typeNameRaw?.coerceTo(String::class) ?: pos.interpretFail("Expected first argument to as to be a string")
+        val type = typeNameRaw as Type
 
         if (value == null) {
           return null
         }
 
-        return CoercionRegistry.tryCoerce(value, typeName) ?: pos.interpretFail("Failed to coerce value")
+        return Type.coerce(type, value)
       }
     }
 
     global["is"] = object: FunctionValue {
       override val name: String = "is"
-      override val params: List<ParamMeta> = listOf(ParamMeta("typeName", String::class, "name of type to check for"), ParamMeta("value", Any::class, "value to check"))
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("type", Type.TypeType, "name of type to check for"),
+        ParamMeta("value", Type.AnyType, "value to check")
+      )
 
       override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 2) {
-          pos.interpretFail("Expected is to have exactly 2 arguments")
-        }
-
         val (typeNameRaw, value) = args
 
-        val typeName = typeNameRaw?.coerceTo(String::class) ?: pos.interpretFail("Expected first argument to is to be a string")
+        val type = typeNameRaw as Type
 
         if (value == null) {
           return false
         }
 
-        return CoercionRegistry.checkType(value, typeName)
+        return type == Type.typeOf(value)
       }
     }
 
@@ -189,8 +237,17 @@ object CoreLibrary: Library {
 
         val (firstRaw, secondRaw) = args
 
-        val first = firstRaw?.coerceTo(Double::class) ?: pos.interpretFail("Invalid args to /")
-        val second = secondRaw?.coerceTo(Double::class) ?: pos.interpretFail("Invalid args to /")
+        val first = when (firstRaw) {
+          is Int -> firstRaw.toDouble()
+          is Number -> firstRaw.toDouble()
+          else -> pos.interpretFail("Invalid args to /")
+        }
+
+        val second = when (secondRaw) {
+          is Int -> secondRaw.toDouble()
+          is Number -> secondRaw.toDouble()
+          else -> pos.interpretFail("Invalid args to /")
+        }
 
         return first / second
       }
@@ -308,14 +365,12 @@ object CoreLibrary: Library {
 
     global["!"] = object : FunctionValue, OperatorFunctionValue {
       override val name: String = "!"
-      override val params: List<ParamMeta> = emptyList()
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("value", Type.BooleanType, "boolean value to invert")
+      )
 
       override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 1) {
-          pos.interpretFail("Invalid args to !")
-        }
-
-        val value = args.single()?.coerceTo(Boolean::class) ?: pos.interpretFail("Invalid args to !")
+        val value = args[0] as Boolean
 
         return !value
       }

@@ -1,8 +1,7 @@
 package lisp.lib
 
 import lisp.*
-import lisp.bytecode.ClosureFunction
-import lisp.coercion.coerceTo
+import lisp.runtime.Type
 
 object ArrayLibrary: Library {
 
@@ -19,12 +18,12 @@ object ArrayLibrary: Library {
     global["array/(mutableAdd)"] = object: FunctionValue {
       override val name: String = "array/(mutableAdd)"
       override val params: List<ParamMeta> = listOf(
-        ParamMeta("array", List::class, "array to add to"),
-        ParamMeta("next", Any::class, "next item to add")
+        ParamMeta("array", Type.ArrayType, "array to add to"),
+        ParamMeta("next", Type.AnyType, "next item to add")
       )
 
       override fun call(args: List<Any?>, pos: Position): Any? {
-        val arr = (args[0] as MutableList<Any?>)
+        val arr = args[0] as ArrayList<Any?>
         arr.add(args[1])
         return arr
       }
@@ -32,16 +31,12 @@ object ArrayLibrary: Library {
 
     global["array/size"] = object: FunctionValue {
       override val name: String = "array/size"
-      override val params: List<ParamMeta> = listOf(ParamMeta("array", List::class, "array to check"))
+      override val params: List<ParamMeta> = listOf(ParamMeta("array", Type.ArrayType, "array to check"))
 
       override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 1) {
-          pos.interpretFail("Expected two arguments to 'array/get'")
-        }
-
         val (arrayRaw) = args
 
-        val array = arrayRaw?.coerceTo(List::class) ?: pos.interpretFail("Expected first argument to 'array/size' to be an array")
+        val array = arrayRaw as List<*>
 
         return array.size
       }
@@ -49,17 +44,16 @@ object ArrayLibrary: Library {
 
     global["array/get"] = object: FunctionValue {
       override val name: String = "array/get"
-      override val params: List<ParamMeta> = listOf(ParamMeta("array", List::class, "array to access"), ParamMeta("index", Int::class, "index of array"))
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("array", Type.ArrayType, "array to access"),
+        ParamMeta("index", Type.IntegerType, "index of array")
+      )
 
       override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 2) {
-          pos.interpretFail("Expected two arguments to 'array/get'")
-        }
-
         val (arrayRaw, indexRaw) = args
 
-        val index = indexRaw?.coerceTo(Int::class) ?: pos.interpretFail("Expected first argument to 'array/get' to be an int")
-        val array = arrayRaw?.coerceTo(List::class) ?: pos.interpretFail("Expected second argument to 'array/get' to be an array")
+        val index = indexRaw as Int
+        val array = arrayRaw as List<*>
 
         return array[index]
       }
@@ -68,9 +62,9 @@ object ArrayLibrary: Library {
     global["array/set"] = object: FunctionValue {
       override val name: String = "array/set"
       override val params: List<ParamMeta> = listOf(
-        ParamMeta("array", List::class, "array to access"),
-        ParamMeta("index", Int::class, "index of array"),
-        ParamMeta("value", Any::class, "value to set in array")
+        ParamMeta("array", Type.ArrayType, "array to access"),
+        ParamMeta("index", Type.IntegerType, "index of array"),
+        ParamMeta("value", Type.AnyType, "value to set in array")
       )
 
       override fun call(args: List<Any?>, pos: Position): Any? {
@@ -80,19 +74,19 @@ object ArrayLibrary: Library {
 
         val (arrayRaw, indexRaw, value) = args
 
-        val index = indexRaw?.coerceTo(Int::class) ?: pos.interpretFail("Expected first argument to 'array/set' to be an int")
-        val array = arrayRaw?.coerceTo(List::class) ?: pos.interpretFail("Expected third argument to 'array/set' to be an array")
+        val index = indexRaw as Int
+        val array = ArrayList(arrayRaw as List<Any?>)
 
-        (array as MutableList<Any?>)[index] = value
-        return value
+        array[index] = value
+        return array
       }
     }
 
     global["array/add"] = object: FunctionValue {
       override val name: String = "array/add"
       override val params: List<ParamMeta> = listOf(
-        ParamMeta("array", List::class, "array to access"),
-        ParamMeta("value", Any::class, "value to add to end of array")
+        ParamMeta("array", Type.ArrayType, "array to access"),
+        ParamMeta("value", Type.AnyType, "value to add to end of array")
       )
 
       override fun call(args: List<Any?>, pos: Position): Any? {
@@ -102,7 +96,7 @@ object ArrayLibrary: Library {
 
         val (arrayRaw, value) = args
 
-        val array = arrayRaw?.coerceTo(List::class) ?: pos.interpretFail("Expected first argument to 'array/add' to be an array")
+        val array = arrayRaw as List<Any?>
 
         return array + value
       }
@@ -111,8 +105,8 @@ object ArrayLibrary: Library {
     global.compileNative(
       name = "array/map",
       params = mutableListOf(
-        ParamMeta("arr", List::class, "array to loop"),
-        ParamMeta("mapper", ClosureFunction::class, "function to do mapping")
+        ParamMeta("arr", Type.ArrayType, "array to loop"),
+        ParamMeta("mapper", Type.FunctionType, "function to do mapping")
       )
     ) {
       load("array/size") // [array/size]
@@ -124,15 +118,15 @@ object ArrayLibrary: Library {
       loadConst(0) // [res, index]
       store("index") // [res]
 
-      loop {
-        condition {
+      loop (
+        conditionBlock = {
           // [res]
           load("!=") // [res, !=]
           load("size") // [res, !=, size]
           load("index") // [res, !=, size, index]
           call(2) // [res, isNotEqual]
-        }
-        body {
+        },
+        bodyBlock = {
           // [res]
           load("array/(mutableAdd)") // [res, array/(mutableAdd)]
           swap() // [array/(mutableAdd), res]
@@ -147,7 +141,7 @@ object ArrayLibrary: Library {
           increment() // [res, index]
           store("index") // [res]
         }
-      }
+      )
       // [res]
       returnIr()
     }
@@ -155,8 +149,8 @@ object ArrayLibrary: Library {
     global.compileNative(
       name = "array/flatMap",
       params = mutableListOf(
-        ParamMeta("arr", List::class, "array to loop"),
-        ParamMeta("mapper", ClosureFunction::class, "function to do mapping")
+        ParamMeta("arr", Type.ArrayType, "array to loop"),
+        ParamMeta("mapper", Type.FunctionType, "function to do mapping")
       )
     ) {
       // init size for loop
@@ -173,17 +167,17 @@ object ArrayLibrary: Library {
       load("array/(build)") // [array/(build)]
       call(0) // [res]
 
-      loop {
-        condition {
+      loop (
+        conditionBlock = {
           // [res]
 
           load("!=") // [res, !=]
           load("index") // [res, !=, index]
           load("size") // [res, !=, index, size])
           call(2) // [res, isNotEqual])
-        }
+        },
 
-        body {
+        bodyBlock = {
           load("as") // [res, as]
           loadConst("Array") // [res, as, Array]
           load("mapper") // [res, as, Array, mapper]
@@ -206,17 +200,17 @@ object ArrayLibrary: Library {
           call(1) // [res, innerSize]
           store("innerSize") // [res]
 
-          loop {
-            condition {
+          loop (
+            conditionBlock = {
               // [res]
 
               load("!=") // [res, !=]
               load("innerIndex") // [res, !=, innerIndex]
               load("innerSize") // [res, !=, innerIndex, innerSize])
               call(2) // [res, isNotEqual])
-            }
+            },
 
-            body {
+            bodyBlock = {
               // [res]
 
               load("array/(mutableAdd)") // [res, array/(mutableAdd)]
@@ -230,90 +224,164 @@ object ArrayLibrary: Library {
               call(2) // [array/(mutableAdd), res, nextItem]
               call(2) // [res]
             }
-          }
+          )
         }
-      }
+      )
 
       // [res]
       returnIr()
     }
 
-    global["array/filter"] = object: FunctionValue {
-      override val name: String = "array/filter"
-      override val params: List<ParamMeta> = listOf(
-        ParamMeta("array", List::class, "array to filter"),
-        ParamMeta("test", FunctionValue::class, "function to perform testing of values")
+    global.compileNative(
+      name = "array/filter",
+      params = arrayListOf(
+        ParamMeta("arr", Type.ArrayType, "array to filter"),
+        ParamMeta("test", Type.FunctionType, "function to test each item against")
+      )
+    ) {
+      // init size for loop
+      load("array/size") // [array/size]
+      load("arr") // [array/size, arr]
+      call(1) // [size]
+      store("size") // []
+
+      // init index
+      loadConst(0) // [index]
+      store("index") // []
+
+      // build new array
+      load("array/(build)") // [array/(build)]
+      call(0) // [res]
+      store("res") // []
+
+      loop (
+        conditionBlock = {
+          load("!=") // [!=]
+          load("index") // [!=, index]
+          load("size") // [!=, index, size])
+          call(2) // [isNotEqual])
+        },
+
+        bodyBlock = {
+          load("array/get") // [array/get]
+          load("arr") // [array/get, arr]
+          load("index") // [array/get, arr, index]
+          dup() // [array/get, arr, index, index]
+          inc() // [array/get, arr, index, nextIndex]
+          store("index") // [array/get, arr, index]
+          call(2) // [next]
+          dup() // [next, next]
+          load("test") // [next, next, test]
+          swap() // [next, test, next]
+          call(1) // [next, isPassed]
+
+          branch(
+            thenBlock = {
+              // [next]
+              load("array/(mutableAdd)") // [next, array/(mutableAdd)]
+              swap() // [array/(mutableAdd), next]
+              load("res") // [array/(mutableAdd), next, res]
+              swap() // [array/(mutableAdd), res, next]
+              call(2) // [res]
+              store("res") // []
+            },
+            elseBlock = {
+              // [next]
+              pop() // []
+            }
+          )
+        }
       )
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 2) {
-          pos.interpretFail("Expected two arguments to 'array/filter'")
-        }
-
-        val (arrayRaw, func) = args
-
-        if (func !is FunctionValue) {
-          pos.interpretFail("Expected first argument to 'array/filter' to be filter function")
-        }
-
-        val array = arrayRaw?.coerceTo(List::class) ?: pos.interpretFail("Expected second argument to 'array/filter' to be an array")
-
-        return array.filter {
-          val out = func.call(listOf(it), pos)
-
-          out?.coerceTo(Boolean::class) ?: pos.interpretFail("Expected function of 'array/filter' to always return a boolean")
-        }
-      }
+      // []
+      load("res") // [res]
+      returnIr() // []
     }
 
-    global["array/fold"] = object: FunctionValue {
-      override val name: String = "array/fold"
-      override val params: List<ParamMeta> = listOf(
-        ParamMeta("array", List::class, "array fold"),
-        ParamMeta("init", Any::class, "starting value for fold"),
-        ParamMeta("test", FunctionValue::class, "function to perform merging of values")
+    global.compileNative(
+      name = "array/fold",
+      params = arrayListOf(
+        ParamMeta("arr", Type.ArrayType, "array to fold"),
+        ParamMeta("init", Type.AnyType, "starting value for fold"),
+        ParamMeta("merge", Type.FunctionType, "function to perform merging of values")
       )
+    ) {
+      load("array/size") // [array/size]
+      load("arr") // [array/size, arr]
+      call(1) // [size]
+      store("size")  // []
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 3) {
-          pos.interpretFail("Expected three arguments to 'array/fold'")
+      loadConst(0) // [0]
+      store("index") // []
+
+      load("init") // [res]
+
+      loop(
+        conditionBlock = {
+          // [res]
+          load("!=") // [res, !=]
+          load("size") // [res, !=, size]
+          load("index") // [res, !=, size, index]
+          call(2) // [res, isNotDone]
+        },
+        bodyBlock = {
+          // [res]
+          load("merge") // [res, merge]
+          swap() // [merge, res]
+          load("array/get") // [merge, res, array/get]
+          load("arr") // [merge, res, array/get, arr]
+          load("index") // [merge, res, array/get, arr, index]
+          dup() // [merge, res, array/get, arr, index, index]
+          inc() // [merge, res, array/get, arr, index, nextIndex]
+          store("index") // [merge, res, array/get, arr, index]
+          call(2) // [merge, res, next]
+          call(2) // [res]
         }
-
-        val (arrayRaw, init, func) = args
-
-        if (func !is FunctionValue) {
-          pos.interpretFail("Expected first argument to 'array/fold' to be a function")
-        }
-
-        val array = arrayRaw?.coerceTo(List::class) ?: pos.interpretFail("Expected third argument to 'array/fold' to be an array")
-
-        return array.fold(init) { sum, next -> func.call(listOf(sum, next), pos) }
-      }
+      )
+      // [res]
+      returnIr() // []
     }
 
-    global["array/forEach"] = object: FunctionValue {
-      override val name: String = "array/forEach"
-      override val params: List<ParamMeta> = listOf(
-        ParamMeta("array", List::class, "array fold"),
-        ParamMeta("action", FunctionValue::class, "function to run on each value")
+    global.compileNative(
+      name = "array/forEach",
+      params = arrayListOf(
+        ParamMeta("arr", Type.ArrayType, "array fold"),
+        ParamMeta("action", Type.FunctionType, "function to run on each value")
       )
+    ) {
+      load("array/size") // [array/size]
+      load("arr") // [array/size, arr]
+      call(1) // [size]
+      store("size")  // []
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 2) {
-          pos.interpretFail("Expected two arguments to 'array/forEach'")
+      loadConst(0) // [0]
+      store("index") // []
+
+      loop(
+        conditionBlock = {
+          // []
+          load("!=") // [!=]
+          load("size") // [!=, size]
+          load("index") // [!=, size, index]
+          call(2) // [isNotDone]
+        },
+        bodyBlock = {
+          // []
+          load("action") // [action]
+          load("array/get") // [action, array/get]
+          load("arr") // [action, array/get, arr]
+          load("index") // [action, array/get, arr, index]
+          dup() // [action, array/get, arr, index, index]
+          inc() // [action, array/get, arr, index, nextIndex]
+          store("index") // [action, array/get, arr, index]
+          call(2) // [action, next]
+          call(1) // [null]
+          pop() // []
         }
-
-        val (arrayRaw, func) = args
-
-        if (func !is FunctionValue) {
-          pos.interpretFail("Expected first argument to 'array/forEach' to be a function")
-        }
-
-        val array = arrayRaw?.coerceTo(List::class) ?: pos.interpretFail("Expected second argument to 'array/forEach' to be an array")
-
-        array.forEach { func.call(listOf(it), pos) }
-        return null
-      }
+      )
+      // []
+      loadConst(null) // [null]
+      returnIr() // []
     }
   }
 
