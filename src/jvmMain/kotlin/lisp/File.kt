@@ -6,12 +6,12 @@ import java.io.File as JFile
 actual class File(val src: JFile) {
 
   actual companion object {
-    actual fun base() = File(JFile(".").absoluteFile.parentFile)
+    actual fun base() = from(".")
 
-    actual fun from(path: String) = File(JFile(path))
+    actual fun from(path: String) = File(JFile(path).absoluteFile).toPath().resolve().toFile()
 
     actual fun from(path: Path): File {
-      return File(Paths.get(".", *path.frags.toTypedArray()).toFile().absoluteFile)
+      return File(JFile( (if (path.isAbsolute) "/" else "") + path.frags.joinToString("/")).absoluteFile)
     }
   }
 
@@ -39,7 +39,7 @@ actual class File(val src: JFile) {
   }
 
   actual fun toPath(): Path {
-    return Path(frags)
+    return Path(true, frags)
   }
 
   actual override fun toString(): String = src.toString()

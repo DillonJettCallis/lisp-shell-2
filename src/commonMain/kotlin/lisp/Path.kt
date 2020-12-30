@@ -1,14 +1,19 @@
 package lisp
 
-class Path(val frags: List<String>) {
+class Path(val isAbsolute: Boolean, val frags: List<String>) {
 
   companion object {
-    fun from(path: String): Path = Path(path.split("""[/\\]""".toRegex())).resolve()
+
+    fun from(path: String): Path {
+      val cleaned = path.trim().replace('\\', '/')
+
+      return Path(cleaned.startsWith('/'), cleaned.split("/")).resolve()
+    }
   }
 
 
   fun resolve(other: Path): Path {
-    return Path(frags + other.frags).resolve()
+    return Path(isAbsolute, frags + other.frags).resolve()
   }
 
   // replace cases of . or .. with their navigations, if possible
@@ -42,7 +47,7 @@ class Path(val frags: List<String>) {
       }
     }
 
-    return Path(working)
+    return Path(isAbsolute, working)
   }
 
   fun toFile(): File = File.from(this)

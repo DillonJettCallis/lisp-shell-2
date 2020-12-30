@@ -2,7 +2,7 @@ plugins {
   kotlin("multiplatform") version "1.4.0"
 }
 
-group = "org.example"
+group = "com.redgear"
 version = "1.0-SNAPSHOT"
 
 val pwBinNomVersion = "0.1.18"
