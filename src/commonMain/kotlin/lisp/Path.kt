@@ -11,8 +11,11 @@ class Path(val isAbsolute: Boolean, val frags: List<String>) {
     }
   }
 
-
   fun resolve(other: Path): Path {
+    if (other.isAbsolute) {
+      return other
+    }
+
     return Path(isAbsolute, frags + other.frags).resolve()
   }
 

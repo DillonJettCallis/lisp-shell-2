@@ -25,3 +25,7 @@ expect class File {
   override fun toString(): String
 
 }
+
+fun File.resolve(path: Path): File = toPath().resolve(path).toFile()
+
+fun File.parent(): File = toPath().resolve(Path.from("..")).toFile()

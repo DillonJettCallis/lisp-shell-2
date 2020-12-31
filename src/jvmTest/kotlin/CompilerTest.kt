@@ -1,10 +1,7 @@
 import lisp.*
 import lisp.bytecode.BytecodeInterpreter
-import lisp.compiler.Compiler
-import lisp.ir.ClosureChecker
 import lisp.ir.IrCompiler
 import lisp.lib.CoreLibrary
-import lisp.transform.AutoWrapTransformer
 import lisp.transform.DefineTransformer
 import kotlin.test.Test
 
@@ -13,13 +10,12 @@ class CompilerTest {
   @Test
   fun irTest() {
     val file = File.from("src\\jvmTest\\resources\\compilerTest.lisp")
-      .readText()
 
     val evaluator = BytecodeEvaluator(BytecodeInterpreter(JvmCommand()))
     val global = CoreLibrary.coreLib()
     val module = global.child(ScopeKind.module)
 
-    val result = evaluator.evaluate(module.child(), file, "compilerTest.lisp")
+    val result = evaluator.evaluateFile(module, file)
 
     println(result)
   }
@@ -35,9 +31,21 @@ class CompilerTest {
     val transformed = DefineTransformer().transform(ast)
 
     val pos = transformed.first().pos
-    val ir = IrCompiler().compileFunction(CallEx( listOf(VariableEx("do", pos)) + transformed, pos))
+    val ir = IrCompiler().compileBlock(CallEx( listOf(VariableEx("do", pos)) + transformed, pos))
 
     println(ir)
   }
 
+  @Test
+  fun importTest() {
+    val file = File.from("src\\jvmTest\\resources\\importTest.lisp")
+
+    val evaluator = BytecodeEvaluator(BytecodeInterpreter(JvmCommand()))
+    val global = CoreLibrary.coreLib()
+    val module = global.child(ScopeKind.module)
+
+    val result = evaluator.evaluateFile(module, file)
+
+    println(result)
+  }
 }

@@ -189,7 +189,7 @@ class ArrayStack(size: Int) {
   private var index = 0
 
   fun pop(func: BytecodeFunction, pos: Int): Any? {
-    if (pos == 0) {
+    if (index == 0) {
       func.invalidBytecode(pos)
     } else {
       return content[--index]
@@ -197,7 +197,7 @@ class ArrayStack(size: Int) {
   }
 
   fun peek(func: BytecodeFunction, pos: Int): Any? {
-    if (pos == 0) {
+    if (index == 0) {
       func.invalidBytecode(pos)
     } else {
       return content[index - 1]

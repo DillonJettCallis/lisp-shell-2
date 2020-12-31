@@ -8,7 +8,7 @@ import lisp.transform.DefineTransformer
 import lisp.transform.Transformer
 
 interface Evaluator {
-  fun evaluate(scope: Scope, raw: String, src: String, autoWrap: Boolean = false): Any?
+  fun evaluate(scope: Scope, raw: String, src: String, baseDir: File, autoWrap: Boolean = false): Any?
 }
 
 private fun prepareAst(raw: String, src: String, autoWrap: Boolean): List<Expression> {
@@ -27,7 +27,7 @@ private fun prepareAst(raw: String, src: String, autoWrap: Boolean): List<Expres
 }
 
 class BytecodeEvaluator(private val interpreter: BytecodeInterpreter, private val transformers: List<Transformer> = listOf(DefineTransformer())): Evaluator {
-  override fun evaluate(scope: Scope, raw: String, src: String, autoWrap: Boolean): Any? {
+  override fun evaluate(scope: Scope, raw: String, src: String, baseDir: File, autoWrap: Boolean): Any? {
     val ast = prepareAst(raw, src, autoWrap)
 
     if (ast.isEmpty()) {
@@ -37,11 +37,21 @@ class BytecodeEvaluator(private val interpreter: BytecodeInterpreter, private va
     val transformed = transformers.fold(ast) { sum, next -> next.transform(sum) }
 
     val pos = transformed.first().pos
-    val ir = IrCompiler().compileFunction(CallEx( listOf(VariableEx("do", pos)) + transformed, pos))
+    val ir = IrCompiler().compileBlock(CallEx( listOf(VariableEx("do", pos)) + transformed, pos))
 
     val compiled = Compiler().compile(ir)
 
-    return interpreter.interpret(scope, compiled, emptyArray(), emptyArray())
+    val childScope = scope.child()
+    childScope["(baseDir)"] = baseDir
+    childScope["(evaluator)"] = this
+
+    return interpreter.interpret(childScope, compiled, emptyArray(), emptyArray())
   }
 }
 
+fun Evaluator.evaluateFile(scope: Scope, file: File): Any? {
+  val raw = file.readText()
+  val src = file.toString()
+
+  return evaluate(scope, raw, src, file.parent(), false)
+}

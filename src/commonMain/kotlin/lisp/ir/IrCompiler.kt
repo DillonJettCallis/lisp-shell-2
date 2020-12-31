@@ -1,13 +1,18 @@
 package lisp.ir
 
 import lisp.*
+import lisp.bytecode.Bytecode
 import lisp.runtime.Type
-import kotlin.reflect.KClass
 
 class IrCompiler {
 
-  fun compileFunction(ex: Expression, params: MutableList<ParamMeta> = ArrayList()): IrFunction {
+  fun compileBlock(ex: Expression, params: MutableList<ParamMeta> = ArrayList()): IrFunction {
     val body = compile(ex)
+
+    if (body.last() is DefineIr) {
+      body += LoadConstIr(null, ex.pos)
+    }
+
     body += ReturnIr(ex.pos)
 
     return constructFunction(body, params, ex.pos)
@@ -27,7 +32,7 @@ class IrCompiler {
     )
   }
 
-  private fun internalCompileFunction(ex: Expression, params: MutableList<ParamMeta>): IrFunction {
+  private fun compileFunction(ex: Expression, params: MutableList<ParamMeta>): IrFunction {
     val body = compile(ex)
     body += ReturnIr(ex.pos)
 
@@ -195,7 +200,7 @@ class IrCompiler {
               paramList.pos.compileFail("Expected first arg to fn to be an array of variable names")
             }
 
-            val func = internalCompileFunction(body, params.toMutableList())
+            val func = compileFunction(body, params.toMutableList())
 
             init += LoadFuncIr(func, ex.pos)
           }
@@ -247,6 +252,74 @@ class IrCompiler {
             } else {
               init.removeLast() // don't pop the last item, leave it on the stack
             }
+          }
+          "import" -> {
+            init += LoadIr("import", head.pos)
+
+            if (tail.size != 1) {
+              head.pos.compileFail("Expected exactly one argument to function 'import'")
+            }
+
+            internalCompile(tail.single(), init)
+            init += LoadIr("(scope)", head.pos)
+            init += LoadIr("(evaluator)", head.pos)
+            init += LoadIr("(baseDir)", head.pos)
+
+            init += CallIr(4, ex.pos)
+          }
+          "include" -> {
+            if (tail.size != 1 && tail.size != 2) {
+              head.pos.compileFail("Expected one or two arguments to function 'include'")
+            }
+
+            init += LoadIr("(include)", head.pos) // [include]
+            init += LoadIr("(scope)", head.pos) // [include, (scope)]
+
+            val pathEx = tail[0]
+
+            if (pathEx is StringLiteralEx) {
+              // if the path is a string literal, then we can just literally inline the import call
+              init += LoadIr("(import)", head.pos)
+              init += LoadConstIr(pathEx.value, pathEx.pos)
+              init += LoadIr("(scope)", head.pos)
+              init += LoadIr("(evaluator)", head.pos)
+              init += LoadIr("(baseDir)", head.pos)
+              init += CallIr(4, head.pos)
+            } else {
+              // otherwise we have to evaluate, then do a runtime check to see if the value is a string or a map
+
+              internalCompile(tail[0], init) // [include, (scope), pathOrMap]
+
+              init += DupIr(head.pos) // [include, (scope), pathOrMap, pathOrMap]
+              init += LoadIr("is", head.pos) // [include, (scope), pathOrMap, pathOrMap, is]
+              init += SwapIr(head.pos) // [include, (scope), pathOrMap, is, pathOrMap]
+              init += LoadConstIr(Type.MapType, head.pos) // [include, (scope), pathOrMap, is, pathOrMap, MapType]
+              init += SwapIr(head.pos) // [include, (scope), pathOrMap, is, MapType, pathOrMap]
+              init += CallIr(1, head.pos) // [include, (scope), pathOrMap, isMap]
+
+              init += BranchIr(
+                pos = head.pos,
+                thenEx = arrayListOf(),
+                elseEx = arrayListOf(
+                  // [include, (scope), path]
+                  LoadIr("(import)", head.pos), // [include, (scope), path, import]
+                  SwapIr(head.pos), // [include, (scope), import, path]
+                  LoadIr("(scope)", head.pos), // [include, (scope), import, path, (scope)]
+                  LoadIr("(evaluator)", head.pos), // [include, (scope), import, path, (scope), (evaluator)]
+                  LoadIr("(srcFile)", head.pos), // [include, (scope), import, path, (scope), (evaluator), cwd]
+                  CallIr(4, head.pos), // [include, (scope), map]
+                )
+              ) // [include, (scope), map]
+            }
+
+            if (tail.size == 2) {
+              internalCompile(tail[1], init)
+            } else {
+              init += LoadConstIr(null, head.pos)
+            }
+
+            // [include, (scope), map, prefix]
+            init += CallIr(3, ex.pos)
           }
           "call" -> {
             // takes a function and an array of the args

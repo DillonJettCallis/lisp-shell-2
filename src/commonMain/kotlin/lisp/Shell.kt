@@ -21,8 +21,6 @@ class Shell(private val sh: ShellInterface, private val evaluator: Evaluator) {
     val resultScope = shellScope.child(ScopeKind.shell)
     val moduleScope = resultScope.child(ScopeKind.module)
 
-    globalScope.setGlobal("(evaluator)", evaluator)
-
     var resultIndex = 0
     var lineIndex = 0
     var exit = false
@@ -76,7 +74,7 @@ class Shell(private val sh: ShellInterface, private val evaluator: Evaluator) {
       try {
         lineIndex++
 
-        val result = evaluator.evaluate(moduleScope, nextLine, "shell-$lineIndex", autoWrap = true)
+        val result = evaluator.evaluate(moduleScope, nextLine, "shell-$lineIndex", cwd, autoWrap = true)
 
         if (result != null && result != "") {
           val index = resultIndex

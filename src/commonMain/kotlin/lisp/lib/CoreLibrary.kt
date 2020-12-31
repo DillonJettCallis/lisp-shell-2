@@ -33,42 +33,44 @@ object CoreLibrary: Library {
     global["cwd"] = File.base()
 
     global["(import)"] = object: FunctionValue {
-      override val name = "(import)"
-      override val params = emptyList<ParamMeta>()
+      override val name = "import"
+      override val params = listOf(
+        ParamMeta("path", Type.PathType, "relative or absolute path of file to import")
+      )
 
       override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 3) {
-          pos.interpretFail("Expected (import) to have exactly 3 arguments")
+        if (args.size != 4) {
+          pos.interpretFail("Expected import to have exactly 4 arguments")
         }
 
-        val (rawScope, rawEvaluator, rawFile) = args
+        val (rawPath, rawScope, rawEvaluator, rawBase) = args
 
         val scope = (rawScope as Scope)
         val evaluator = rawEvaluator as Evaluator
-        val file = rawFile as File
-
-        val fileContent = file.readText()
+        val baseFile = rawBase as File
+        val path = rawPath as Path
+        val file = baseFile.resolve(path)
 
         val moduleScope = scope.child(ScopeKind.module)
 
-        evaluator.evaluate(moduleScope, fileContent, file.toString())
+        evaluator.evaluateFile(moduleScope, file)
 
         return moduleScope.export()
       }
     }
 
     global["(include)"] = object: FunctionValue {
-      override val name = "(include)"
+      override val name = "include"
       override val params = emptyList<ParamMeta>()
 
       override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 2 && args.size != 3) {
-          pos.interpretFail("Expected (include) to have 2 or 3 arguments")
+        if (args.size != 3) {
+          pos.interpretFail("Expected include to have exactly 3 arguments")
         }
 
         val scope = args[0] as Scope
         val values = args[1] as HashMap<String, Any?>
-        val prefix = if (args.size == 3) args[2] as String else null
+        val prefix = args[2] as String?
 
         if (prefix == null) {
           values.forEach { (key, value) -> scope.define(key, value) }
@@ -78,37 +80,6 @@ object CoreLibrary: Library {
 
         return null
       }
-    }
-
-    global.compileNative(
-      name = "import",
-      params = arrayListOf(
-        ParamMeta("path", Type.FileType, "path to file to import")
-      )
-    ) {
-      load("(import)") // [(import)]
-      load("(scope)") // [(import), (scope)]
-      load("(evaluator)") // [(import), (scope), (evaluator)]
-      load("path") // [(import), (scope), (evaluator), path]
-      call(3) // [exports]
-      returnIr() // []
-    }
-
-    global.compileNative(
-      name = "include",
-      params = arrayListOf(
-        ParamMeta("path", Type.FileType, "path to file to include"),
-        ParamMeta("prefix", Type.StringType, "prefix is prepend to every included value")
-      )
-    ) {
-      load("(include)") // [(include)]
-      load("(scope)") // [(include), (scope)]
-      load("import") // [(include), (scope), import]
-      load("path") // [(include), (scope), import, path]
-      call(3) // [(include), (scope), exports]
-      load("prefix") // [(include), (scope), exports, prefix]
-      call(3) // [null]
-      returnIr() // []
     }
 
     global["as"] = object: FunctionValue {
