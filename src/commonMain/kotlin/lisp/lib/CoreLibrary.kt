@@ -32,56 +32,6 @@ object CoreLibrary: Library {
   override fun addLib(global: Scope) {
     global["cwd"] = File.base()
 
-    global["(import)"] = object: FunctionValue {
-      override val name = "import"
-      override val params = listOf(
-        ParamMeta("path", Type.PathType, "relative or absolute path of file to import")
-      )
-
-      override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 4) {
-          pos.interpretFail("Expected import to have exactly 4 arguments")
-        }
-
-        val (rawPath, rawScope, rawEvaluator, rawBase) = args
-
-        val scope = (rawScope as Scope)
-        val evaluator = rawEvaluator as Evaluator
-        val baseFile = rawBase as File
-        val path = rawPath as Path
-        val file = baseFile.resolve(path)
-
-        val moduleScope = scope.child(ScopeKind.module)
-
-        evaluator.evaluateFile(moduleScope, file)
-
-        return moduleScope.export()
-      }
-    }
-
-    global["(include)"] = object: FunctionValue {
-      override val name = "include"
-      override val params = emptyList<ParamMeta>()
-
-      override fun call(args: List<Any?>, pos: Position): Any? {
-        if (args.size != 3) {
-          pos.interpretFail("Expected include to have exactly 3 arguments")
-        }
-
-        val scope = args[0] as Scope
-        val values = args[1] as HashMap<String, Any?>
-        val prefix = args[2] as String?
-
-        if (prefix == null) {
-          values.forEach { (key, value) -> scope.define(key, value) }
-        } else {
-          values.forEach { (key, value) -> scope.define("$prefix/$key", value) }
-        }
-
-        return null
-      }
-    }
-
     global["as"] = object: FunctionValue {
       override val name: String = "as"
       override val params: List<ParamMeta> = listOf(
