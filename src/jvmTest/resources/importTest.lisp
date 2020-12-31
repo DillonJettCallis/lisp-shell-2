@@ -1,3 +1,3 @@
 (include ./importTarget.lisp)
 
-(sum 4 5)
+(return (sum 4 5))

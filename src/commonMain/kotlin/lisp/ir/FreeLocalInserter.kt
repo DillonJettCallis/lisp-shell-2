@@ -2,7 +2,7 @@ package lisp.ir
 
 import lisp.ParamMeta
 
-class FreeFinder private constructor(private val freeable: HashSet<String>): IrVisitor {
+class FreeLocalInserter private constructor(private val freeable: HashSet<String>): IrVisitor {
 
   companion object {
     fun addFrees(all: MutableList<Ir>, params: List<ParamMeta>) {
@@ -11,7 +11,7 @@ class FreeFinder private constructor(private val freeable: HashSet<String>): IrV
       // So we know it's never needed again
       val freeable = HashSet(all.stores())
       freeable += params.map { it.name }
-      FreeFinder(freeable).visitAll(all)
+      FreeLocalInserter(freeable).visitAll(all)
     }
 
     private fun List<Ir>.stores(): HashSet<String> {
@@ -28,8 +28,8 @@ class FreeFinder private constructor(private val freeable: HashSet<String>): IrV
 
   override fun visit(ir: LoopIr, access: IrVisitorAccess) {
     // first free anything declared inside of these blocks (stored and not already declared)
-    FreeFinder(ir.condition.stores().also { it -= freeable }).visitAll(ir.condition)
-    FreeFinder(ir.body.stores().also { it -= freeable }).visitAll(ir.body)
+    FreeLocalInserter(ir.condition.stores().also { it -= freeable }).visitAll(ir.condition)
+    FreeLocalInserter(ir.body.stores().also { it -= freeable }).visitAll(ir.body)
 
     // nothing can be freed inside a loop, they're used more than once, but they can be freed after the loop
     val loads = (LoadFinder.findLoads(ir.condition) + LoadFinder.findLoads(ir.body)).intersect(freeable)
@@ -49,12 +49,12 @@ class FreeFinder private constructor(private val freeable: HashSet<String>): IrV
     val elseFreeable = HashSet(freeable)
 
     // first free anything declared inside of these blocks
-    FreeFinder(ir.thenEx.stores().also { it -= freeable }).visitAll(ir.thenEx)
-    FreeFinder(ir.elseEx.stores().also { it -= freeable }).visitAll(ir.elseEx)
+    FreeLocalInserter(ir.thenEx.stores().also { it -= freeable }).visitAll(ir.thenEx)
+    FreeLocalInserter(ir.elseEx.stores().also { it -= freeable }).visitAll(ir.elseEx)
 
     // now free everything declared before
-    FreeFinder(thenFreeable).visitAll(ir.thenEx)
-    FreeFinder(elseFreeable).visitAll(ir.elseEx)
+    FreeLocalInserter(thenFreeable).visitAll(ir.thenEx)
+    FreeLocalInserter(elseFreeable).visitAll(ir.elseEx)
 
     val freedByThen = freeable - thenFreeable
     val freedByElse = freeable - elseFreeable

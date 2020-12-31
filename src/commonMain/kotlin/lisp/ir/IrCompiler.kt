@@ -1,19 +1,13 @@
 package lisp.ir
 
 import lisp.*
-import lisp.bytecode.Bytecode
 import lisp.runtime.Type
 
 class IrCompiler {
 
   fun compileBlock(ex: Expression, params: MutableList<ParamMeta> = ArrayList()): IrFunction {
     val body = compile(ex)
-
-    if (body.last() is DefineIr) {
-      body += LoadConstIr(null, ex.pos)
-    }
-
-    body += ReturnIr(ex.pos)
+    body += ReturnVoidIr(ex.pos)
 
     return constructFunction(body, params, ex.pos)
   }
@@ -22,7 +16,8 @@ class IrCompiler {
     AnonArgumentRemover.resolve(body, params)
     val context = ClosureChecker.check(body, params)
 
-    FreeFinder.addFrees(body, params)
+    FreeLocalInserter.addFrees(body, params)
+    UnusedLocalRemove.removeUnusedLocals(body)
 
     return IrFunction(
       body = body,
@@ -213,6 +208,14 @@ class IrCompiler {
             val elseBlock = if (tail.size == 3) compile(tail[2]) else ArrayList()
 
             init += BranchIr(thenBlock, elseBlock, ex.pos)
+          }
+          "return" -> {
+            if (tail.size != 1) {
+              head.pos.compileFail("Expected exactly one argument to function return")
+            }
+
+            internalCompile(tail[0], init)
+            init += ReturnIr(head.pos)
           }
           "||" -> {
             val (first, second) = tail

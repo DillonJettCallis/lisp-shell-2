@@ -1,8 +1,11 @@
 package lisp.ir
 
+import kotlin.math.min
+
 interface IrVisitorAccess {
-  fun replace(ir: Ir)
-  fun replace(all: List<Ir>)
+  fun replace(ir: Ir, numToReplace: Int = 1)
+  fun replace(all: List<Ir>, numToReplace: Int = 1)
+  fun peekAt(numToPeek: Int): List<Ir>
 }
 
 interface IrVisitor {
@@ -25,6 +28,7 @@ interface IrVisitor {
   fun visit(ir: CallIr, access: IrVisitorAccess) {}
   fun visit(ir: CallDynamicIr, access: IrVisitorAccess) {}
   fun visit(ir: ReturnIr, access: IrVisitorAccess) {}
+  fun visit(ir: ReturnVoidIr, access: IrVisitorAccess) {}
   fun visit(ir: BuildShellIr, access: IrVisitorAccess) {}
   fun visit(ir: BuildClosureIr, access: IrVisitorAccess) {}
   fun visit(ir: LoadFuncIr, access: IrVisitorAccess) {}
@@ -46,15 +50,34 @@ interface IrVisitor {
     val iter = block.listIterator()
 
     val access = object: IrVisitorAccess {
-      override fun replace(ir: Ir) {
-        iter.set(ir)
+      override fun replace(ir: Ir, numToReplace: Int) {
+        (0 until (numToReplace - 1)).forEach {
+          iter.remove()
+          iter.next()
+        }
+
+        iter.remove()
+
+        iter.add(ir)
       }
 
-      override fun replace(all: List<Ir>) {
+      override fun replace(all: List<Ir>, numToReplace: Int) {
+        (0 until (numToReplace - 1)).forEach {
+          iter.remove()
+          iter.next()
+        }
+
         iter.remove()
+
         all.forEach {
           iter.add(it)
         }
+      }
+
+      override fun peekAt(numToPeek: Int): List<Ir> {
+        val index = iter.nextIndex()
+
+        return block.subList(index, min(index + numToPeek, block.size))
       }
     }
 
@@ -87,6 +110,7 @@ interface IrVisitor {
       is CallIr -> visit(ir, access)
       is CallDynamicIr -> visit(ir, access)
       is ReturnIr -> visit(ir, access)
+      is ReturnVoidIr -> visit(ir, access)
       is BuildShellIr -> visit(ir, access)
       is BuildClosureIr -> visit(ir, access)
       is BranchIr -> visit(ir, access)

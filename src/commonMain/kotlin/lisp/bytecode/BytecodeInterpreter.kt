@@ -99,6 +99,7 @@ class BytecodeInterpreter(private val shell: Command) {
           stack.push(func, index, callFunction(callFunc, params, scope, func, pos, index))
         }
         Bytecode.Return -> return stack.pop(func, index)
+        Bytecode.ReturnVoid -> return null
         Bytecode.BuildShell -> {
           val path = func.getString(index, body[++index])
 

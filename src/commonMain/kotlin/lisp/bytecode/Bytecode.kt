@@ -92,6 +92,7 @@ class BytecodeFunction(
         }
         Bytecode.CallDynamic -> buffer += "CallDynamic"
         Bytecode.Return -> buffer += "Return"
+        Bytecode.ReturnVoid -> buffer += "ReturnVoid"
         Bytecode.BuildShell -> {
           val constIndex = code[index++]
           buffer += "BuildShell -> $constIndex"
@@ -154,6 +155,7 @@ enum class Bytecode {
   Call, // (function, ..any) num of args
   CallDynamic, // (function, array of args)
   Return, // (any)
+  ReturnVoid, // ()
   BuildShell, // () shell const index
   BuildClosure, // () number of closure params
   Jump, // jump to index

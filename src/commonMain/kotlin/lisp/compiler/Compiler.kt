@@ -122,6 +122,7 @@ class Compiler {
             scope.call(1)
           }
           is ReturnIr -> buffer += Bytecode.Return
+          is ReturnVoidIr -> buffer += Bytecode.ReturnVoid
           is BuildShellIr -> {
             buffer += Bytecode.BuildShell
             buffer.push(stringConstantMap.indexedAdd(ir.path))
