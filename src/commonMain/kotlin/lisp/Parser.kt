@@ -34,7 +34,6 @@ class Parser(private val raw: List<Token>) {
         }
       }
       TokenKind.variable -> VariableEx(next.value, next.pos)
-      TokenKind.operator -> OperatorEx(next.value, next.pos)
       TokenKind.literal -> {
         when (next.value) {
           "null" -> NullLiteralEx(next.pos)

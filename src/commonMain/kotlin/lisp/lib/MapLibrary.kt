@@ -9,33 +9,8 @@ import lisp.runtime.Type
 object MapLibrary : Library {
 
   override fun addLib(global: Scope) {
-    global["map/(build)"] = object : FunctionValue {
-      override val name: String = "map/(build)"
-      override val params: List<ParamMeta> = emptyList()
-
-      override fun call(args: List<Any?>, pos: Position): Any? {
-        return HashMap<Any?, Any?>()
-      }
-    }
-
-    global["map/(mutablePut)"] = object : FunctionValue {
-      override val name: String = "map/(mutablePut)"
-      override val params: List<ParamMeta> = listOf(
-        ParamMeta("map", Type.MapType, "map to mutate"),
-        ParamMeta("key", Type.AnyType, "key to insert"),
-        ParamMeta("value", Type.AnyType, "value to insert")
-      )
-
-      override fun call(args: List<Any?>, pos: Position): Any? {
-        val (rawMap, key, value) = args
-        val map = rawMap as MutableMap<Any?, Any?>
-        map[key] = value
-        return map
-      }
-    }
-
-    global["map/get"] = object : FunctionValue {
-      override val name: String = "map/get"
+    global["get"] = object : FunctionValue {
+      override val name: String = "get"
       override val params: List<ParamMeta> = listOf(
         ParamMeta("map", Type.MapType, "map to access"),
         ParamMeta("key", Type.AnyType, "key to get from map")
@@ -48,8 +23,8 @@ object MapLibrary : Library {
       }
     }
 
-    global["map/set"] = object : FunctionValue {
-      override val name: String = "map/set"
+    global["set"] = object : FunctionValue {
+      override val name: String = "set"
       override val params: List<ParamMeta> = listOf(
         ParamMeta("map", Type.MapType, "map to access"),
         ParamMeta("key", Type.AnyType, "key to set"),
@@ -66,8 +41,8 @@ object MapLibrary : Library {
       }
     }
 
-    global["map/contains"] = object : FunctionValue {
-      override val name: String = "map/contains"
+    global["contains"] = object : FunctionValue {
+      override val name: String = "contains"
       override val params: List<ParamMeta> = listOf(
         ParamMeta("map", Type.MapType, "map to check"),
         ParamMeta("key", Type.AnyType, "key to check for")
@@ -80,8 +55,8 @@ object MapLibrary : Library {
       }
     }
 
-    global["map/entries"] = object : FunctionValue {
-      override val name: String = "map/entries"
+    global["entries"] = object : FunctionValue {
+      override val name: String = "entries"
       override val params: List<ParamMeta> = listOf(
         ParamMeta("map", Type.MapType, "map to list entries")
       )

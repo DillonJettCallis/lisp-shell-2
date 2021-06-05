@@ -1,9 +1,6 @@
 package lisp.bytecode
 
-import lisp.Command
-import lisp.File
-import lisp.Position
-import lisp.Scope
+import lisp.*
 import lisp.runtime.Type
 
 class BytecodeInterpreter(private val shell: Command) {
@@ -118,6 +115,15 @@ class BytecodeInterpreter(private val shell: Command) {
           val funcCall = stack.pop(func, startIndex) as BytecodeFunction
 
           stack.push(func, index, ClosureFunction(scope, closure, funcCall))
+        }
+        Bytecode.BuildModule -> {
+          val moduleBody = stack.pop(func, body[index]) as ClosureFunction
+
+          val (exportScope, moduleScope) = moduleBody.scope.constructModuleScope()
+
+          interpret(moduleScope, moduleBody.code, emptyArray(), emptyArray())
+
+          stack.push(func, index, exportScope.export())
         }
         Bytecode.Jump -> {
           val initIndex = index

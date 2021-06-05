@@ -7,7 +7,6 @@ enum class TokenKind {
   command,
   number,
   literal,
-  operator,
   variable
 }
 
@@ -23,8 +22,6 @@ class Lexer(private val raw: String, private val src: String) {
     private val numberRegex = "-?\\d\\.?\\d*".toRegex()
     private val brackets = "()[]{}".toSet()
     private val literals = setOf("null", "true", "false")
-    private val operators = setOf("\\", "+", "-", "*", "/", "==", "!=", "<", "<=", ">", ">=", "!", "||", "&&", "&")
-    private val operatorChars = operators.flatMapTo(HashSet()) { it.asIterable() }
     private val stringEscapeMap = mapOf(
       '\'' to '\'',
       '"' to '"',
@@ -35,18 +32,7 @@ class Lexer(private val raw: String, private val src: String) {
       '\\' to '\\',
       '$' to '$'
     )
-
-    private object WordsObj {
-      private val digits = '0' .. '9'
-      private val lowerCase = 'a' .. 'z'
-      private val upperCase = 'A' .. 'Z'
-
-      operator fun contains(char: Char): Boolean {
-        return char in digits || char in lowerCase || char in upperCase
-      }
-    }
-
-    private val words = WordsObj
+    private val nonWords = whitespace + quoteTypes + brackets
 
     fun lex(raw: String, src: String): List<Token> {
       return Lexer(raw, src).doLex()
@@ -82,7 +68,7 @@ class Lexer(private val raw: String, private val src: String) {
       }
       '$' -> {
         advance()
-        parseWord(pos).verifyVar()
+        parseWord(pos).copy(kind = TokenKind.variable)
       }
       '@' -> {
         advance()
@@ -104,7 +90,6 @@ class Lexer(private val raw: String, private val src: String) {
   private fun String.kind(): TokenKind {
     return when {
       this in literals -> TokenKind.literal
-      this in operators -> TokenKind.operator
       matches(numberRegex) -> TokenKind.number
       else -> TokenKind.rawString
     }
@@ -117,11 +102,10 @@ class Lexer(private val raw: String, private val src: String) {
       when (val next = raw[index]) {
         in whitespace, in brackets -> break
         in quoteTypes -> if (insideString) break else pos().lexFail("Unexpected string begin")
-        in words, '.', in operatorChars -> {
+        else -> {
           buff.append(next)
           advance()
         }
-        else -> pos().lexFail("Illegal char. Expected digit or latin character")
       }
     }
 
@@ -161,7 +145,7 @@ class Lexer(private val raw: String, private val src: String) {
           if (!hasInterpolation) {
             hasInterpolation = true
             tokens += Token(value = "(", kind = TokenKind.bracket, pos = pos)
-            tokens += Token(value = "&", kind = TokenKind.operator, pos = pos)
+            tokens += Token(value = ".", kind = TokenKind.variable, pos = pos)
           }
 
           if (buff.isNotEmpty()) {
@@ -177,7 +161,7 @@ class Lexer(private val raw: String, private val src: String) {
           }
 
           when (raw[index]) {
-            in words -> tokens += parseWord(workingPos, true).verifyVar()
+            !in nonWords -> tokens += parseWord(workingPos, true).copy(kind = TokenKind.variable)
             '(' -> {
               var parenCount = 0
 
@@ -226,14 +210,6 @@ class Lexer(private val raw: String, private val src: String) {
       return Token(value = ")", kind = TokenKind.bracket, pos = pos())
     } else {
       finalString
-    }
-  }
-
-  private fun Token.verifyVar(): Token {
-    if (value == "*" || value.all { it in words }) {
-      return copy(kind = TokenKind.variable)
-    } else {
-      pos.lexFail("Invalid identifier")
     }
   }
 

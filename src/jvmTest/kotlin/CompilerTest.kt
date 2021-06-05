@@ -30,8 +30,7 @@ class CompilerTest {
 
     val transformed = DefineTransformer().transform(ast)
 
-    val pos = transformed.first().pos
-    val ir = IrCompiler().compileBlock(CallEx( listOf(VariableEx("do", pos)) + transformed, pos))
+    val ir = IrCompiler().compileBlock("body:compilerTest", transformed)
 
     println(ir)
   }
@@ -39,6 +38,19 @@ class CompilerTest {
   @Test
   fun importTest() {
     val file = File.from("src\\jvmTest\\resources\\importTest.lisp")
+
+    val evaluator = BytecodeEvaluator(BytecodeInterpreter(JvmCommand()))
+    val global = CoreLibrary.coreLib()
+    val module = global.child(ScopeKind.module)
+
+    val result = evaluator.evaluateFile(module, file)
+
+    println(result)
+  }
+
+  @Test
+  fun moduleTest() {
+    val file = File.from("src\\jvmTest\\resources\\moduleTest.lisp")
 
     val evaluator = BytecodeEvaluator(BytecodeInterpreter(JvmCommand()))
     val global = CoreLibrary.coreLib()

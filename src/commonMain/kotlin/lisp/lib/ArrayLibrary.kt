@@ -6,31 +6,8 @@ import lisp.runtime.Type
 object ArrayLibrary: Library {
 
   override fun addLib(global: Scope) {
-    global["array/(build)"] = object: FunctionValue {
-      override val name: String = "array/(build)"
-      override val params: List<ParamMeta> = emptyList()
-
-      override fun call(args: List<Any?>, pos: Position): Any? {
-        return ArrayList<Any?>()
-      }
-    }
-
-    global["array/(mutableAdd)"] = object: FunctionValue {
-      override val name: String = "array/(mutableAdd)"
-      override val params: List<ParamMeta> = listOf(
-        ParamMeta("array", Type.ArrayType, "array to add to"),
-        ParamMeta("next", Type.AnyType, "next item to add")
-      )
-
-      override fun call(args: List<Any?>, pos: Position): Any? {
-        val arr = args[0] as ArrayList<Any?>
-        arr.add(args[1])
-        return arr
-      }
-    }
-
-    global["array/size"] = object: FunctionValue {
-      override val name: String = "array/size"
+    global["size"] = object: FunctionValue {
+      override val name: String = "size"
       override val params: List<ParamMeta> = listOf(ParamMeta("array", Type.ArrayType, "array to check"))
 
       override fun call(args: List<Any?>, pos: Position): Any? {
@@ -42,8 +19,8 @@ object ArrayLibrary: Library {
       }
     }
 
-    global["array/get"] = object: FunctionValue {
-      override val name: String = "array/get"
+    global["get"] = object: FunctionValue {
+      override val name: String = "get"
       override val params: List<ParamMeta> = listOf(
         ParamMeta("array", Type.ArrayType, "array to access"),
         ParamMeta("index", Type.IntegerType, "index of array")
@@ -59,8 +36,8 @@ object ArrayLibrary: Library {
       }
     }
 
-    global["array/set"] = object: FunctionValue {
-      override val name: String = "array/set"
+    global["set"] = object: FunctionValue {
+      override val name: String = "set"
       override val params: List<ParamMeta> = listOf(
         ParamMeta("array", Type.ArrayType, "array to access"),
         ParamMeta("index", Type.IntegerType, "index of array"),
@@ -69,7 +46,7 @@ object ArrayLibrary: Library {
 
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 3) {
-          pos.interpretFail("Expected three arguments to 'array/set'")
+          pos.interpretFail("Expected three arguments to 'set'")
         }
 
         val (arrayRaw, indexRaw, value) = args
@@ -82,8 +59,8 @@ object ArrayLibrary: Library {
       }
     }
 
-    global["array/add"] = object: FunctionValue {
-      override val name: String = "array/add"
+    global["add"] = object: FunctionValue {
+      override val name: String = "add"
       override val params: List<ParamMeta> = listOf(
         ParamMeta("array", Type.ArrayType, "array to access"),
         ParamMeta("value", Type.AnyType, "value to add to end of array")
@@ -91,7 +68,7 @@ object ArrayLibrary: Library {
 
       override fun call(args: List<Any?>, pos: Position): Any? {
         if (args.size != 2) {
-          pos.interpretFail("Expected three arguments to 'array/add'")
+          pos.interpretFail("Expected three arguments to 'add'")
         }
 
         val (arrayRaw, value) = args
@@ -103,17 +80,17 @@ object ArrayLibrary: Library {
     }
 
     global.compileNative(
-      name = "array/map",
+      name = "map",
       params = mutableListOf(
         ParamMeta("arr", Type.ArrayType, "array to loop"),
         ParamMeta("mapper", Type.FunctionType, "function to do mapping")
       )
     ) {
-      load("array/size") // [array/size]
-      load("arr") // [array/size, arr]
-      call(1) // [size]
-      store("size") // []
-      load("array/(build)") // [array/(build)]
+      load("size") // [size]
+      load("arr") // [size, arr]
+      call(1) // [arrSize]
+      store("arrSize") // []
+      load("(arrayBuild)") // [(arrayBuild)]
       call(0) // [res]
       loadConst(0) // [res, index]
       store("index") // [res]
@@ -122,20 +99,20 @@ object ArrayLibrary: Library {
         conditionBlock = {
           // [res]
           load("!=") // [res, !=]
-          load("size") // [res, !=, size]
-          load("index") // [res, !=, size, index]
+          load("arrSize") // [res, !=, arrSize]
+          load("index") // [res, !=, arrSize, index]
           call(2) // [res, isNotEqual]
         },
         bodyBlock = {
           // [res]
-          load("array/(mutableAdd)") // [res, array/(mutableAdd)]
-          swap() // [array/(mutableAdd), res]
-          load("mapper") // [array/(mutableAdd), res, mapper]
-          load("array/get") // [array/(mutableAdd), res, mapper, array/get]
-          load("arr") // [array/(mutableAdd), res, mapper, array/get, arr]
-          load("index") // [array/(mutableAdd), res, mapper, array/get, arr, index]
-          call(2) // [array/(mutableAdd), res, mapper, nextBefore]
-          call(1) // [array/(mutableAdd), res, nextAfter]
+          load("(arrayMutableAdd)") // [res, (arrayMutableAdd)]
+          swap() // [(arrayMutableAdd), res]
+          load("mapper") // [(arrayMutableAdd), res, mapper]
+          load("get") // [(arrayMutableAdd), res, mapper, get]
+          load("arr") // [(arrayMutableAdd), res, mapper, get, arr]
+          load("index") // [(arrayMutableAdd), res, mapper, get, arr, index]
+          call(2) // [(arrayMutableAdd), res, mapper, nextBefore]
+          call(1) // [(arrayMutableAdd), res, nextAfter]
           call(2) // [res]
           load("index") // [res, index]
           increment() // [res, index]
@@ -147,24 +124,24 @@ object ArrayLibrary: Library {
     }
 
     global.compileNative(
-      name = "array/flatMap",
+      name = "flatMap",
       params = mutableListOf(
         ParamMeta("arr", Type.ArrayType, "array to loop"),
         ParamMeta("mapper", Type.FunctionType, "function to do mapping")
       )
     ) {
       // init size for loop
-      load("array/size") // [array/size]
-      load("arr") // [array/size, arr]
-      call(1) // [size]
-      store("size") // []
+      load("size") // [size]
+      load("arr") // [size, arr]
+      call(1) // [arrSize]
+      store("arrSize") // []
 
       // init index
       loadConst(0) // [index]
       store("index") // []
 
       // build new array
-      load("array/(build)") // [array/(build)]
+      load("(arrayBuild)") // [(arrayBuild)]
       call(0) // [res]
 
       loop (
@@ -173,7 +150,7 @@ object ArrayLibrary: Library {
 
           load("!=") // [res, !=]
           load("index") // [res, !=, index]
-          load("size") // [res, !=, index, size])
+          load("arrSize") // [res, !=, index, arrSize])
           call(2) // [res, isNotEqual])
         },
 
@@ -181,12 +158,12 @@ object ArrayLibrary: Library {
           load("as") // [res, as]
           loadConst("Array") // [res, as, Array]
           load("mapper") // [res, as, Array, mapper]
-          load("array/get") // [res, as, Array, mapper, array/get]
-          load("arr") // [res, as, Array, mapper, array/get, arr]
-          load("index") // [res, as, Array, mapper, array/get, arr, index]
-          dup() // [res, as, Array, mapper, array/get, arr, index, index]
-          inc() // [res, as, Array, mapper, array/get, arr, index, nextIndex]
-          store("index") // [res, as, Array, mapper, array/get, arr, index]
+          load("get") // [res, as, Array, mapper, get]
+          load("arr") // [res, as, Array, mapper, get, arr]
+          load("index") // [res, as, Array, mapper, get, arr, index]
+          dup() // [res, as, Array, mapper, get, arr, index, index]
+          inc() // [res, as, Array, mapper, get, arr, index, nextIndex]
+          store("index") // [res, as, Array, mapper, get, arr, index]
           call(2) // [res, as, Array, mapper, nextBefore]
           call(1) // [res, as, Array, nextMapped]
           call(2) // [res, nextArray]
@@ -195,8 +172,8 @@ object ArrayLibrary: Library {
           store("innerIndex") // [res, nextArray]
           dup() // [res, nextArray, nextArray]
           store("nextArray") // [res, nextArray]
-          load("array/size") // [res, nextArray, array/size]
-          swap() // [res, array/size, nextArray]
+          load("size") // [res, nextArray, size]
+          swap() // [res, size, nextArray]
           call(1) // [res, innerSize]
           store("innerSize") // [res]
 
@@ -213,15 +190,15 @@ object ArrayLibrary: Library {
             bodyBlock = {
               // [res]
 
-              load("array/(mutableAdd)") // [res, array/(mutableAdd)]
-              swap() // [array/(mutableAdd), res]
-              load("array/get") // [array/(mutableAdd), res, array/get]
-              load("nextArray") // [array/(mutableAdd), res, array/get, nextArray]
-              load("innerIndex") // [array/(mutableAdd), res, array/get, nextArray, innerIndex]
-              dup() // [array/(mutableAdd), res, array/get, nextArray, innerIndex, innerIndex]
-              inc() // [array/(mutableAdd), res, array/get, nextArray, innerIndex, nextInnerIndex]
-              store("innerIndex") // [array/(mutableAdd), res, array/get, nextArray, innerIndex]
-              call(2) // [array/(mutableAdd), res, nextItem]
+              load("(arrayMutableAdd)") // [res, (arrayMutableAdd)]
+              swap() // [(arrayMutableAdd), res]
+              load("get") // [(arrayMutableAdd), res, get]
+              load("nextArray") // [(arrayMutableAdd), res, get, nextArray]
+              load("innerIndex") // [(arrayMutableAdd), res, get, nextArray, innerIndex]
+              dup() // [(arrayMutableAdd), res, get, nextArray, innerIndex, innerIndex]
+              inc() // [(arrayMutableAdd), res, get, nextArray, innerIndex, nextInnerIndex]
+              store("innerIndex") // [(arrayMutableAdd), res, get, nextArray, innerIndex]
+              call(2) // [(arrayMutableAdd), res, nextItem]
               call(2) // [res]
             }
           )
@@ -233,24 +210,24 @@ object ArrayLibrary: Library {
     }
 
     global.compileNative(
-      name = "array/filter",
+      name = "filter",
       params = arrayListOf(
         ParamMeta("arr", Type.ArrayType, "array to filter"),
         ParamMeta("test", Type.FunctionType, "function to test each item against")
       )
     ) {
       // init size for loop
-      load("array/size") // [array/size]
-      load("arr") // [array/size, arr]
-      call(1) // [size]
-      store("size") // []
+      load("size") // [size]
+      load("arr") // [size, arr]
+      call(1) // [arrSize]
+      store("arrSize") // []
 
       // init index
       loadConst(0) // [index]
       store("index") // []
 
       // build new array
-      load("array/(build)") // [array/(build)]
+      load("(arrayBuild)") // [(arrayBuild)]
       call(0) // [res]
       store("res") // []
 
@@ -258,17 +235,17 @@ object ArrayLibrary: Library {
         conditionBlock = {
           load("!=") // [!=]
           load("index") // [!=, index]
-          load("size") // [!=, index, size])
+          load("arrSize") // [!=, index, arrSize])
           call(2) // [isNotEqual])
         },
 
         bodyBlock = {
-          load("array/get") // [array/get]
-          load("arr") // [array/get, arr]
-          load("index") // [array/get, arr, index]
-          dup() // [array/get, arr, index, index]
-          inc() // [array/get, arr, index, nextIndex]
-          store("index") // [array/get, arr, index]
+          load("get") // [get]
+          load("arr") // [get, arr]
+          load("index") // [get, arr, index]
+          dup() // [get, arr, index, index]
+          inc() // [get, arr, index, nextIndex]
+          store("index") // [get, arr, index]
           call(2) // [next]
           dup() // [next, next]
           load("test") // [next, next, test]
@@ -278,10 +255,10 @@ object ArrayLibrary: Library {
           branch(
             thenBlock = {
               // [next]
-              load("array/(mutableAdd)") // [next, array/(mutableAdd)]
-              swap() // [array/(mutableAdd), next]
-              load("res") // [array/(mutableAdd), next, res]
-              swap() // [array/(mutableAdd), res, next]
+              load("(arrayMutableAdd)") // [next, (arrayMutableAdd)]
+              swap() // [(arrayMutableAdd), next]
+              load("res") // [(arrayMutableAdd), next, res]
+              swap() // [(arrayMutableAdd), res, next]
               call(2) // [res]
               store("res") // []
             },
@@ -299,17 +276,17 @@ object ArrayLibrary: Library {
     }
 
     global.compileNative(
-      name = "array/fold",
+      name = "fold",
       params = arrayListOf(
         ParamMeta("arr", Type.ArrayType, "array to fold"),
         ParamMeta("init", Type.AnyType, "starting value for fold"),
         ParamMeta("merge", Type.FunctionType, "function to perform merging of values")
       )
     ) {
-      load("array/size") // [array/size]
-      load("arr") // [array/size, arr]
-      call(1) // [size]
-      store("size")  // []
+      load("size") // [size]
+      load("arr") // [size, arr]
+      call(1) // [arrSize]
+      store("arrSize")  // []
 
       loadConst(0) // [0]
       store("index") // []
@@ -320,20 +297,20 @@ object ArrayLibrary: Library {
         conditionBlock = {
           // [res]
           load("!=") // [res, !=]
-          load("size") // [res, !=, size]
-          load("index") // [res, !=, size, index]
+          load("arrSize") // [res, !=, arrSize]
+          load("index") // [res, !=, arrSize, index]
           call(2) // [res, isNotDone]
         },
         bodyBlock = {
           // [res]
           load("merge") // [res, merge]
           swap() // [merge, res]
-          load("array/get") // [merge, res, array/get]
-          load("arr") // [merge, res, array/get, arr]
-          load("index") // [merge, res, array/get, arr, index]
-          dup() // [merge, res, array/get, arr, index, index]
-          inc() // [merge, res, array/get, arr, index, nextIndex]
-          store("index") // [merge, res, array/get, arr, index]
+          load("get") // [merge, res, get]
+          load("arr") // [merge, res, get, arr]
+          load("index") // [merge, res, get, arr, index]
+          dup() // [merge, res, get, arr, index, index]
+          inc() // [merge, res, get, arr, index, nextIndex]
+          store("index") // [merge, res, get, arr, index]
           call(2) // [merge, res, next]
           call(2) // [res]
         }
@@ -343,16 +320,16 @@ object ArrayLibrary: Library {
     }
 
     global.compileNative(
-      name = "array/forEach",
+      name = "forEach",
       params = arrayListOf(
         ParamMeta("arr", Type.ArrayType, "array fold"),
         ParamMeta("action", Type.FunctionType, "function to run on each value")
       )
     ) {
-      load("array/size") // [array/size]
-      load("arr") // [array/size, arr]
+      load("size") // [size]
+      load("arr") // [size, arr]
       call(1) // [size]
-      store("size")  // []
+      store("arrSize")  // []
 
       loadConst(0) // [0]
       store("index") // []
@@ -361,19 +338,19 @@ object ArrayLibrary: Library {
         conditionBlock = {
           // []
           load("!=") // [!=]
-          load("size") // [!=, size]
-          load("index") // [!=, size, index]
+          load("arrSize") // [!=, arrSize]
+          load("index") // [!=, arrSize, index]
           call(2) // [isNotDone]
         },
         bodyBlock = {
           // []
           load("action") // [action]
-          load("array/get") // [action, array/get]
-          load("arr") // [action, array/get, arr]
-          load("index") // [action, array/get, arr, index]
-          dup() // [action, array/get, arr, index, index]
-          inc() // [action, array/get, arr, index, nextIndex]
-          store("index") // [action, array/get, arr, index]
+          load("get") // [action, get]
+          load("arr") // [action, get, arr]
+          load("index") // [action, get, arr, index]
+          dup() // [action, get, arr, index, index]
+          inc() // [action, get, arr, index, nextIndex]
+          store("index") // [action, get, arr, index]
           call(2) // [action, next]
           call(1) // [null]
           pop() // []

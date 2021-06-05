@@ -6,8 +6,8 @@ import lisp.runtime.Type
 object PathLibrary: Library {
 
   override fun addLib(global: Scope) {
-    global["path"] = object: FunctionValue {
-      override val name: String = "path"
+    global["new"] = object: FunctionValue {
+      override val name: String = "new"
       override val params: List<ParamMeta> = listOf(
         ParamMeta("path", Type.StringType, "raw path")
       )

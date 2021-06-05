@@ -1,8 +1,11 @@
 package lisp
 
+import lisp.runtime.Type
+
 enum class ScopeKind {
   global,
   shell,
+  export,
   module,
   local
 }
@@ -58,6 +61,14 @@ class Scope(private val kind: ScopeKind, private val parent: Scope?) {
     }
   }
 
+  fun export(key: String, value: Any?) {
+    if (kind == ScopeKind.export) {
+      this[key] = value
+    } else {
+      parent?.export(key, value)
+    }
+  }
+
   fun export(): Map<String, Any?> {
     return HashMap(content)
   }
@@ -65,5 +76,35 @@ class Scope(private val kind: ScopeKind, private val parent: Scope?) {
   fun global(): Scope = if (this.kind == ScopeKind.global) this else parent!!.global()
 
   fun child(kind: ScopeKind = ScopeKind.local): Scope = Scope(kind, this)
+
+  fun include(values: Map<String, Any?>, prefix: String?) {
+    if (prefix == null) {
+      values.forEach { (key, value) -> define(key, value) }
+    } else {
+      values.forEach { (key, value) -> define("$prefix/$key", value) }
+    }
+  }
+
+  fun constructModuleScope(): Pair<Scope, Scope> {
+    val exportScope = child(ScopeKind.export)
+    val moduleScope = exportScope.child(ScopeKind.module)
+
+    moduleScope["export"] = object: FunctionValue {
+      override val name: String = "export"
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("name", Type.StringType, "variable name to export"),
+        ParamMeta("value", Type.AnyType, "value to export")
+      )
+
+      override fun call(args: List<Any?>, pos: Position): Any? {
+        val (rawName, value) = args
+
+        exportScope[rawName as String] = value
+        return value
+      }
+    }
+
+    return exportScope to moduleScope
+  }
 
 }

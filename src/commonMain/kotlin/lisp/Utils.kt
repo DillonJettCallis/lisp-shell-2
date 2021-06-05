@@ -94,7 +94,7 @@ fun Scope.compileNative(name: String, params: MutableList<ParamMeta>, builder: I
   val pos = Position(0, 0, "$name <native code>")
   val body = IrFunctionBuilder(pos).also { builder(it) }.build
 
-  val ir = IrCompiler().constructFunction(body, params, pos)
+  val ir = IrCompiler().constructFunction(name, body, params, pos)
   val bytecode = Compiler().compile(ir)
 
   this[name] = ClosureFunction(this, emptyArray(), bytecode)

@@ -136,6 +136,7 @@ class Compiler {
             scope.call(ir.paramCount)
             posList += ir.pos
           }
+          is BuildModuleIr -> buffer += Bytecode.BuildModule
           is BranchIr -> {
             buffer += Bytecode.Branch
 
@@ -218,6 +219,7 @@ class Compiler {
 
             buffer[indexOfConditionJump] = buffer.size - indexOfConditionJump // jump to here when condition is false
           }
+          else -> throw IllegalStateException("We forgot to handle an IR type!")
         }
       }
 
@@ -230,6 +232,7 @@ class Compiler {
 
 
     return BytecodeFunction(
+      func.name,
       params = func.params,
       code = code,
       maxLocals = scope.maxLocals,

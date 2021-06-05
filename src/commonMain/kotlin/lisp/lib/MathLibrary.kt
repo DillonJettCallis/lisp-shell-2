@@ -9,9 +9,9 @@ import kotlin.math.PI
 
 object MathLibrary: Library {
   override fun addLib(global: Scope) {
-    global["math/pi"] = PI
+    global["pi"] = PI
 
-    global["math/divInt"] = object: FunctionValue {
+    global["divInt"] = object: FunctionValue {
       override val name: String = "math/divInt"
       override val params: List<ParamMeta> = listOf(
         ParamMeta("dividend", Type.IntegerType, "base number to be divided"),

@@ -5,7 +5,22 @@ import lisp.runtime.Type
 
 class IrCompiler {
 
-  fun compileBlock(ex: Expression, params: MutableList<ParamMeta> = ArrayList(), isModule: Boolean = false): IrFunction {
+  companion object {
+
+    // these are functions that can't be used dynamically because they all require special compiler support
+    // they are forbidden as variable names, and can ONLY be used as functions, not any normal variable
+    val reservedWords = setOf("def", "defn", "fn", "let", "if", "return", "export", "module", "call", "recurse")
+
+  }
+
+  private fun List<Expression>.unify(): Expression {
+    val pos = first().pos
+    return CallEx( listOf(VariableEx("do", pos)) + this, pos)
+  }
+
+  fun compileBlock(name: String, rawBody: List<Expression>, params: MutableList<ParamMeta> = ArrayList(), isModule: Boolean = false): IrFunction {
+    val ex = rawBody.unify()
+
     val body = compile(ex)
 
     if (isModule) {
@@ -20,10 +35,10 @@ class IrCompiler {
       body += ReturnIr(ex.pos)
     }
 
-    return constructFunction(body, params, ex.pos)
+    return constructFunction(name, body, params, ex.pos)
   }
 
-  fun constructFunction(body: MutableList<Ir>, params: MutableList<ParamMeta>, pos: Position): IrFunction {
+  fun constructFunction(name: String, body: MutableList<Ir>, params: MutableList<ParamMeta>, pos: Position): IrFunction {
     AnonArgumentRemover.resolve(body, params)
     val context = ClosureChecker.check(body, params)
 
@@ -31,6 +46,7 @@ class IrCompiler {
     UnusedLocalRemove.removeUnusedLocals(body)
 
     return IrFunction(
+      name = name,
       body = body,
       params = params,
       pos = pos,
@@ -38,11 +54,12 @@ class IrCompiler {
     )
   }
 
-  private fun compileFunction(ex: Expression, params: MutableList<ParamMeta>): IrFunction {
+  private fun compileFunction(name: String, ex: Expression, params: MutableList<ParamMeta>): IrFunction {
     val body = compile(ex)
     body += ReturnIr(ex.pos)
 
     return IrFunction(
+      name = name,
       body = body,
       params = params,
       pos = ex.pos
@@ -67,11 +84,11 @@ class IrCompiler {
         } else {
           val pos = ex.pos
 
-          init += LoadIr("array/(build)", pos) // prepare the build function => [.., array/build]
+          init += LoadIr("(arrayBuild)", pos) // prepare the build function => [.., array/build]
           init += CallIr(0, pos) // leaves new array on the stack => [.., arr]
 
           ex.body.forEach {
-            init += LoadIr("array/(mutableAdd)", pos) // push the add function onto the stack => [..,  arr, array/add]
+            init += LoadIr("(arrayMutableAdd)", pos) // push the add function onto the stack => [..,  arr, array/add]
             init += SwapIr(pos) // swap so the add is lower => [..,  array/add, arr]
             internalCompile(it, init) // push the next item on the stack => [.., array/add, arr, item]
             init += CallIr(2, pos) // call add to push the new item into the array [.., arr]
@@ -86,11 +103,11 @@ class IrCompiler {
         } else {
           val pos = ex.pos
 
-          init += LoadIr("map/(build)", pos) // prepare the build function => [.., map/build]
+          init += LoadIr("(mapBuild)", pos) // prepare the build function => [.., map/build]
           init += CallIr(0, pos) // leaves new map on the stack => [.., map]
 
           ex.body.forEach { (key, value) ->
-            init += LoadIr("map/(mutablePut)", pos) // push the add function onto the stack => [..,  map, map/add]
+            init += LoadIr("(mapMutableSet)", pos) // push the add function onto the stack => [..,  map, map/add]
             init += SwapIr(pos) // swap so the add is lower => [..,  map/add, map]
             internalCompile(key, init) // push the next key on the stack => [.., map/add, map, key]
             internalCompile(value, init) // push the next value on the stack =>  [.., map/add, map, key, value]
@@ -119,6 +136,10 @@ class IrCompiler {
               nameEx.pos.compileFail("def expected first arg to be variable name")
             }
 
+            if (name in reservedWords) {
+              nameEx.pos.compileFail("Reserved name cannot be used as variable name '$name'")
+            }
+
             internalCompile(body, init)
 
             init += DefineIr(name, nameEx.pos)
@@ -140,6 +161,10 @@ class IrCompiler {
               val name = nameEx.name
               names += name
 
+              if (name in reservedWords) {
+                nameEx.pos.compileFail("Reserved name cannot be used as variable name '$name'")
+              }
+
               internalCompile(content, letBody)
 
               letBody += StoreIr(name, nameEx.pos)
@@ -150,12 +175,34 @@ class IrCompiler {
             init += letBody
           }
           "fn" -> {
-            val (paramList, body) = tail
+            val (name, paramList, body) = when(tail.size) {
+              2 -> {
+                val (paramList, body) = tail
+
+                Triple("anon:${head.pos.src}:${head.pos.line}:${head.pos.col}", paramList, body)
+              }
+              3 -> {
+                val (nameEx, paramList, body) = tail
+
+                if (nameEx !is StringLiteralEx) {
+                  nameEx.pos.compileFail("Expected optional first argument to 'fn' to be a function name")
+                }
+
+                Triple(nameEx.value, paramList, body)
+              }
+              else -> head.pos.compileFail("Expected 'fn' to contain either two or three arguments")
+            }
 
             val params = if (paramList is ArrayEx) {
               paramList.body.map {
                 when (it) {
-                  is VariableEx -> ParamMeta(it.name)
+                  is VariableEx -> {
+                    if (it.name in reservedWords) {
+                      it.pos.compileFail("Reserved name cannot be used as variable name '${it.name}'")
+                    }
+
+                    ParamMeta(it.name)
+                  }
                   is ArrayEx -> {
                     if (it.body.isEmpty()) {
                       it.pos.compileFail("Expected variable declaration")
@@ -167,6 +214,10 @@ class IrCompiler {
                       nameEx.pos.compileFail("Expected variable declaration")
                     } else {
                       nameEx.name
+                    }
+
+                    if (name in reservedWords) {
+                      nameEx.pos.compileFail("Reserved name cannot be used as variable name '$name'")
                     }
 
                     val type: Type = if (it.body.size > 1) {
@@ -206,7 +257,7 @@ class IrCompiler {
               paramList.pos.compileFail("Expected first arg to fn to be an array of variable names")
             }
 
-            val func = compileFunction(body, params.toMutableList())
+            val func = compileFunction(name, body, params.toMutableList())
 
             init += LoadFuncIr(func, ex.pos)
           }
@@ -228,7 +279,7 @@ class IrCompiler {
             internalCompile(tail[0], init)
             init += ReturnIr(head.pos)
           }
-          "||" -> {
+          "or" -> {
             val (first, second) = tail
 
             internalCompile(first, init)
@@ -236,7 +287,7 @@ class IrCompiler {
 
             init += BranchIr(ArrayList(), whenFalse, ex.pos)
           }
-          "&&" -> {
+          "and" -> {
             val (first, second) = tail
 
             internalCompile(first, init)
@@ -266,6 +317,41 @@ class IrCompiler {
             } else {
               init.removeLast() // don't pop the last item, leave it on the stack
             }
+          }
+          "export" -> {
+            val (nameEx, valueEx) = when (tail.size) {
+              1 -> tail[0] to tail[0]
+              2 -> {
+                val (nameEx, valueEx) = tail
+
+                nameEx to valueEx
+              }
+              else -> head.pos.compileFail("Expected exactly one or two arguments to function 'export")
+            }
+
+            if (nameEx !is VariableEx) {
+              nameEx.pos.compileFail("Expected first argument to 'export' to be a variable name")
+            }
+
+            if (nameEx.name in reservedWords) {
+              nameEx.pos.compileFail("Reserved name cannot be used as variable name '${nameEx.name}'")
+            }
+
+            val nameLiteral = StringLiteralEx(nameEx.name, false, nameEx.pos)
+
+            init += LoadIr(funcName, head.pos)
+            internalCompile(nameLiteral, init)
+            internalCompile(valueEx, init)
+
+            init += CallIr(2, head.pos)
+          }
+          "module" -> {
+            val name = "module:${head.pos.src}:${head.pos.line}:${head.pos.col}"
+
+            val moduleBody = compileFunction(name, tail.unify(), ArrayList())
+
+            init += LoadFuncIr(moduleBody, head.pos)
+            init += BuildModuleIr(head.pos)
           }
           "call" -> {
             // takes a function and an array of the args

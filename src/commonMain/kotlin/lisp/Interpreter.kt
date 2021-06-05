@@ -11,6 +11,3 @@ interface FunctionValue {
   val params: List<ParamMeta>
   fun call(args: List<Any?>, pos: Position): Any?
 }
-
-// marker interface
-interface OperatorFunctionValue: FunctionValue

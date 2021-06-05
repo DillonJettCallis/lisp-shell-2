@@ -5,8 +5,8 @@ import lisp.runtime.Type
 
 object FileLibrary: Library {
   override fun addLib(global: Scope) {
-    global["file"] = object: FunctionValue {
-      override val name: String = "file"
+    global["new"] = object: FunctionValue {
+      override val name: String = "new"
       override val params: List<ParamMeta> = listOf(
         ParamMeta("source", Type.StringType, "file path")
       )

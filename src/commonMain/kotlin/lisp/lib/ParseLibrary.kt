@@ -8,8 +8,8 @@ import lisp.runtime.Type
 
 object ParseLibrary: Library {
   override fun addLib(global: Scope) {
-    global["parse/lines"] = object: FunctionValue {
-      override val name: String = "parse/lines"
+    global["lines"] = object: FunctionValue {
+      override val name: String = "lines"
       override val params: List<ParamMeta> = listOf(
         ParamMeta("raw", Type.StringType, "string to be split into lines")
       )
@@ -24,8 +24,8 @@ object ParseLibrary: Library {
       }
     }
 
-    global["parse/json"] = object: FunctionValue {
-      override val name: String = "parse/json"
+    global["json"] = object: FunctionValue {
+      override val name: String = "json"
       override val params: List<ParamMeta> = listOf(
         ParamMeta("raw", Type.StringType, "string containing raw json")
       )

@@ -7,6 +7,7 @@ import lisp.Scope
 import lisp.ir.IrFunction
 
 class BytecodeFunction(
+  val name: String,
   val params: List<ParamMeta>,
   val code: IntArray,
   val maxLocals: Int,
@@ -35,7 +36,7 @@ class BytecodeFunction(
 
   fun decompile(): String {
     val bytecodes = Bytecode.values()
-    val buffer = StringBuilder()
+    val buffer = StringBuilder("Function '${name}', def:\n")
     var index = 0
 
     while (index < code.size) {
@@ -158,6 +159,7 @@ enum class Bytecode {
   ReturnVoid, // ()
   BuildShell, // () shell const index
   BuildClosure, // () number of closure params
+  BuildModule, // (function)
   Jump, // jump to index
   Branch, // (boolean) jump if FALSE! True will fall through
 }

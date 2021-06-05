@@ -1,3 +1,3 @@
-(include ./importTarget.lisp)
+(import ./importTarget.lisp, math)
 
-(sum 4 5)
+(math/prod 4 5)

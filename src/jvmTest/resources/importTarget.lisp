@@ -1,1 +1,4 @@
-(defn $sum [$x $y] (+ $x $y))
+(defn $prod [$x $y] (* $x $y))
+
+(export $prod)
+(export $sum (fn [$x $y] (+ $x $y)))

@@ -31,6 +31,7 @@ interface IrVisitor {
   fun visit(ir: ReturnVoidIr, access: IrVisitorAccess) {}
   fun visit(ir: BuildShellIr, access: IrVisitorAccess) {}
   fun visit(ir: BuildClosureIr, access: IrVisitorAccess) {}
+  fun visit(ir: BuildModuleIr, access: IrVisitorAccess) {}
   fun visit(ir: LoadFuncIr, access: IrVisitorAccess) {}
   fun visit(ir: BranchIr, access: IrVisitorAccess) {
     visitAll(ir.thenEx)
@@ -113,9 +114,10 @@ interface IrVisitor {
       is ReturnVoidIr -> visit(ir, access)
       is BuildShellIr -> visit(ir, access)
       is BuildClosureIr -> visit(ir, access)
+      is BuildModuleIr -> visit(ir, access)
       is BranchIr -> visit(ir, access)
       is LoopIr -> visit(ir, access)
-
+      else -> throw IllegalStateException("We forgot an Ir type!")
     }
   }
 

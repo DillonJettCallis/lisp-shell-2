@@ -1,3 +1,4 @@
+(import #array array)
 
 (defn $fib [[$end Integer 'number of Fibonacci number to return. Min is 2']] (let
   {
@@ -12,4 +13,12 @@
   ($recurseFib 1, 1 [1, 1])
 ))
 
-(array/fold (array/flatMap ($fib 10) (\ do [$1 (* $1 2)])) 0 +)
+
+(array/fold
+    (array/flatMap
+        ($fib 10)
+        (\ do [$1 (* $1 2)])
+    )
+    0
+    $+
+)

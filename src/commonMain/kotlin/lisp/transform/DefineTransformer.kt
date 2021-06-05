@@ -40,21 +40,26 @@ class DefineTransformer : Transformer {
             )
           }
           "defn" -> {
-            // (defn $name [$args] (body)) => (def $name (fn [$args] (body)))
+            // (defn $name [$args] (body)) => (def $name (fn "name" [$args] (body)))
 
             if (ex.body.size != 4) {
               ex.pos.compileFail("Invalid args to defn. Expected (defn \$name [\$args] (body))")
             }
 
-            val (_, name, argArray, body) = ex.body
+            val (_, nameEx, argArray, body) = ex.body
+
+            if (nameEx !is VariableEx) {
+              nameEx.pos.compileFail("Expected first argument to 'defn' to be a variable")
+            }
 
             CallEx(
               body = listOf(
                 VariableEx("def", head.pos),
-                name,
+                nameEx,
                 CallEx(
                   body = listOf(
                     VariableEx("fn", head.pos),
+                    StringLiteralEx(nameEx.name, true, nameEx.pos),
                     argArray,
                     transform(body)
                   ),

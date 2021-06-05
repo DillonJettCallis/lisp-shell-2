@@ -9,28 +9,74 @@ interface Library {
 
 object CoreLibrary: Library {
 
+  val nativeLibs = mapOf(
+    "math" to MathLibrary,
+    "string" to StringLibrary,
+    "array" to ArrayLibrary,
+    "map" to MapLibrary,
+    "path" to PathLibrary,
+    "file" to FileLibrary,
+    "parse" to ParseLibrary
+  )
+
   fun coreLib(): Scope {
     val global = Scope(ScopeKind.global, null)
 
-
-    val libs = listOf(
-      CoreLibrary,
-      MathLibrary,
-      StringLibrary,
-      ArrayLibrary,
-      MapLibrary,
-      PathLibrary,
-      FileLibrary,
-      ParseLibrary
-    )
-
-    libs.forEach { it.addLib(global) }
+    addLib(global)
 
     return global
   }
 
   override fun addLib(global: Scope) {
     global["cwd"] = File.base()
+
+    global["(arrayBuild)"] = object: FunctionValue {
+      override val name: String = "(arrayBuild)"
+      override val params: List<ParamMeta> = emptyList()
+
+      override fun call(args: List<Any?>, pos: Position): ArrayList<Any?> {
+        return ArrayList()
+      }
+    }
+
+    global["(arrayMutableAdd)"] = object: FunctionValue {
+      override val name: String = "(arrayMutableAdd)"
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("array", Type.ArrayType, "array to add to"),
+        ParamMeta("next", Type.AnyType, "next item to add")
+      )
+
+      override fun call(args: List<Any?>, pos: Position): MutableList<Any?> {
+        val arr = args[0] as MutableList<Any?>
+        arr.add(args[1])
+        return arr
+      }
+    }
+
+    global["(mapBuild)"] = object : FunctionValue {
+      override val name: String = "(mapBuild)"
+      override val params: List<ParamMeta> = emptyList()
+
+      override fun call(args: List<Any?>, pos: Position): HashMap<Any?, Any?> {
+        return HashMap()
+      }
+    }
+
+    global["(mapMutableSet)"] = object : FunctionValue {
+      override val name: String = "(mapMutableSet)"
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("map", Type.MapType, "map to mutate"),
+        ParamMeta("key", Type.AnyType, "key to insert"),
+        ParamMeta("value", Type.AnyType, "value to insert")
+      )
+
+      override fun call(args: List<Any?>, pos: Position): MutableMap<Any?, Any?> {
+        val (rawMap, key, value) = args
+        val map = rawMap as MutableMap<Any?, Any?>
+        map[key] = value
+        return map
+      }
+    }
 
     global["as"] = object: FunctionValue {
       override val name: String = "as"
@@ -59,7 +105,7 @@ object CoreLibrary: Library {
         ParamMeta("value", Type.AnyType, "value to check")
       )
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
+      override fun call(args: List<Any?>, pos: Position): Boolean {
         val (typeNameRaw, value) = args
 
         val type = typeNameRaw as Type
@@ -72,20 +118,20 @@ object CoreLibrary: Library {
       }
     }
 
-    global["&"] = object : FunctionValue, OperatorFunctionValue {
-      override val name: String = "&"
+    global["."] = object : FunctionValue {
+      override val name: String = "."
       override val params: List<ParamMeta> = emptyList()
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
+      override fun call(args: List<Any?>, pos: Position): String {
         return args.joinToString("")
       }
     }
 
-    global["+"] = object : FunctionValue, OperatorFunctionValue {
+    global["+"] = object : FunctionValue {
       override val name: String = "+"
       override val params: List<ParamMeta> = emptyList()
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
+      override fun call(args: List<Any?>, pos: Position): Any {
         if (args.size != 2) {
           pos.interpretFail("Invalid args to +")
         }
@@ -100,11 +146,11 @@ object CoreLibrary: Library {
       }
     }
 
-    global["-"] = object : FunctionValue, OperatorFunctionValue {
+    global["-"] = object : FunctionValue {
       override val name: String = "-"
       override val params: List<ParamMeta> = emptyList()
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
+      override fun call(args: List<Any?>, pos: Position): Any {
         return when (args.size) {
           1 -> {
             when (val value = args[0]) {
@@ -128,11 +174,11 @@ object CoreLibrary: Library {
       }
     }
 
-    global["*"] = object : FunctionValue, OperatorFunctionValue {
+    global["*"] = object : FunctionValue {
       override val name: String = "*"
       override val params: List<ParamMeta> = emptyList()
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
+      override fun call(args: List<Any?>, pos: Position): Any {
         if (args.size != 2) {
           pos.interpretFail("Invalid args to *")
         }
@@ -147,11 +193,11 @@ object CoreLibrary: Library {
       }
     }
 
-    global["/"] = object : FunctionValue, OperatorFunctionValue {
+    global["/"] = object : FunctionValue {
       override val name: String = "/"
       override val params: List<ParamMeta> = emptyList()
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
+      override fun call(args: List<Any?>, pos: Position): Any {
         if (args.size != 2) {
           pos.interpretFail("Invalid args to /")
         }
@@ -174,11 +220,11 @@ object CoreLibrary: Library {
       }
     }
 
-    global["=="] = object : FunctionValue, OperatorFunctionValue {
+    global["=="] = object : FunctionValue {
       override val name: String = "=="
       override val params: List<ParamMeta> = emptyList()
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
+      override fun call(args: List<Any?>, pos: Position): Boolean {
         if (args.size != 2) {
           pos.interpretFail("Invalid args to ==")
         }
@@ -189,11 +235,11 @@ object CoreLibrary: Library {
       }
     }
 
-    global["!="] = object : FunctionValue, OperatorFunctionValue {
+    global["!="] = object : FunctionValue {
       override val name: String = "!="
       override val params: List<ParamMeta> = emptyList()
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
+      override fun call(args: List<Any?>, pos: Position): Boolean {
         if (args.size != 2) {
           pos.interpretFail("Invalid args to !=")
         }
@@ -204,11 +250,11 @@ object CoreLibrary: Library {
       }
     }
 
-    global["<"] = object : FunctionValue, OperatorFunctionValue {
+    global["<"] = object : FunctionValue {
       override val name: String = "<"
       override val params: List<ParamMeta> = emptyList()
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
+      override fun call(args: List<Any?>, pos: Position): Boolean {
         if (args.size != 2) {
           pos.interpretFail("Invalid args to <")
         }
@@ -224,11 +270,11 @@ object CoreLibrary: Library {
       }
     }
 
-    global["<="] = object : FunctionValue, OperatorFunctionValue {
+    global["<="] = object : FunctionValue {
       override val name: String = "<="
       override val params: List<ParamMeta> = emptyList()
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
+      override fun call(args: List<Any?>, pos: Position): Boolean {
         if (args.size != 2) {
           pos.interpretFail("Invalid args to <=")
         }
@@ -244,11 +290,11 @@ object CoreLibrary: Library {
       }
     }
 
-    global[">"] = object : FunctionValue, OperatorFunctionValue {
+    global[">"] = object : FunctionValue {
       override val name: String = ">"
       override val params: List<ParamMeta> = emptyList()
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
+      override fun call(args: List<Any?>, pos: Position): Boolean {
         if (args.size != 2) {
           pos.interpretFail("Invalid args to >")
         }
@@ -264,11 +310,11 @@ object CoreLibrary: Library {
       }
     }
 
-    global[">="] = object : FunctionValue, OperatorFunctionValue {
+    global[">="] = object : FunctionValue {
       override val name: String = ">="
       override val params: List<ParamMeta> = emptyList()
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
+      override fun call(args: List<Any?>, pos: Position): Any {
         if (args.size != 2) {
           pos.interpretFail("Invalid args to >=")
         }
@@ -284,16 +330,53 @@ object CoreLibrary: Library {
       }
     }
 
-    global["!"] = object : FunctionValue, OperatorFunctionValue {
-      override val name: String = "!"
+    global["not"] = object : FunctionValue {
+      override val name: String = "not"
       override val params: List<ParamMeta> = listOf(
         ParamMeta("value", Type.BooleanType, "boolean value to invert")
       )
 
-      override fun call(args: List<Any?>, pos: Position): Any? {
+      override fun call(args: List<Any?>, pos: Position): Boolean {
         val value = args[0] as Boolean
 
         return !value
+      }
+    }
+
+    global["or"] = object : FunctionValue {
+      override val name: String = "or"
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("left", Type.BooleanType, "boolean value to compare"),
+        ParamMeta("right", Type.BooleanType, "boolean value to compare")
+      )
+
+      override fun call(args: List<Any?>, pos: Position): Boolean {
+        val (rawLeft, rawRight) = args
+
+        return (rawLeft as Boolean) || (rawRight as Boolean)
+      }
+    }
+
+    global["and"] = object : FunctionValue {
+      override val name: String = "and"
+      override val params: List<ParamMeta> = listOf(
+        ParamMeta("left", Type.BooleanType, "boolean value to compare"),
+        ParamMeta("right", Type.BooleanType, "boolean value to compare")
+      )
+
+      override fun call(args: List<Any?>, pos: Position): Boolean {
+        val (rawLeft, rawRight) = args
+
+        return (rawLeft as Boolean) && (rawRight as Boolean)
+      }
+    }
+
+    global["do"] = object : FunctionValue {
+      override val name: String = "do"
+      override val params: List<ParamMeta> = emptyList()
+
+      override fun call(args: List<Any?>, pos: Position): Any? {
+        return args.lastOrNull()
       }
     }
   }

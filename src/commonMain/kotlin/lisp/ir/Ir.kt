@@ -4,6 +4,7 @@ import lisp.ParamMeta
 import lisp.Position
 
 data class IrFunction(
+  val name: String,
   val body: MutableList<Ir>,
   val params: MutableList<ParamMeta>,
   val pos: Position,
@@ -34,5 +35,6 @@ data class ReturnIr(override val pos: Position): Ir()
 data class ReturnVoidIr(override val pos: Position): Ir()
 data class BuildShellIr(val path: String, override val pos: Position): Ir()
 data class BuildClosureIr(val paramCount: Int, override val pos: Position): Ir()
+data class BuildModuleIr(override val pos: Position): Ir()
 data class BranchIr(val thenEx: MutableList<Ir>, val elseEx: MutableList<Ir>, override val pos: Position): Ir()
 data class LoopIr(val condition: MutableList<Ir>, val body: MutableList<Ir>, override val pos: Position): Ir()
