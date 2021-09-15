@@ -1,5 +1,6 @@
 package lisp
 
+import lisp.Command.Companion.defaultFlags
 import lisp.bytecode.BytecodeInterpreter
 import lisp.compiler.Compiler
 import lisp.ir.IrCompiler
@@ -123,5 +124,39 @@ class ImportFunction(private val targetScope: Scope,
 
     return module.export()
   }
+}
+
+class ExecFunction(private val sh: Command) : FunctionValue {
+  override val name = "exec"
+  override val params: List<ParamMeta> = listOf(
+    ParamMeta("workingDir", Type.FileType, "working directory"),
+    ParamMeta("command", Type.StringType, "shell command to run"),
+    ParamMeta("args", Type.ArrayType, "array of shell arguments"),
+    ParamMeta("flags", Type.ArrayType, "array of flags to use in command"),
+  )
+
+  override fun call(args: List<Any?>, pos: Position): Any? {
+    if (args.size < 2) {
+      pos.interpretFail("Not enough args passed to exec. workingDir and command are required")
+    }
+
+    val rawCwd = args[0] as File
+    val rawCommand = args[1] as String
+
+    val rawCmdArgs = if (args.size >= 3) (args[2] as List<Any?>).map { Type.coerce(Type.StringType, it)!! } as List<String> else listOf()
+
+    val rawFlags = if (args.size >= 4) {
+      (args[3] as List<Any?>)
+        .mapTo(HashSet()) { Type.coerce(Type.StringType, it)!! } as Set<String>
+    } else {
+      defaultFlags
+    }
+
+    val flags = Command.evalFlags(rawFlags, pos)
+
+    return sh.execute(rawCwd, rawCommand, rawCmdArgs, flags)
+  }
+
+
 }
 

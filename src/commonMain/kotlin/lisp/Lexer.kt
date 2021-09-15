@@ -57,33 +57,49 @@ class Lexer(private val raw: String, private val src: String) {
     return tokens
   }
 
-  private fun lexNext(pos: Position): Token {
+  private fun lexNext(pos: Position): List<Token> {
     return when (val next = raw[index]) {
       in brackets -> {
         advance()
-        Token(value = next.toString(), kind = TokenKind.bracket, pos = pos)
+        listOf(Token(value = next.toString(), kind = TokenKind.bracket, pos = pos))
       }
       in quoteTypes -> {
         parseString(next, pos)
       }
       '$' -> {
         advance()
-        parseWord(pos).copy(kind = TokenKind.variable)
+        listOf(parseWord(pos).copy(kind = TokenKind.variable))
       }
       '@' -> {
         advance()
 
         if (index < maxIndex) {
-          if (raw[index] in quoteTypes) {
-            parseString(raw[index], pos).copy(kind = TokenKind.command)
+          val path = if (raw[index] in quoteTypes) {
+            parseString(raw[index], pos)
           } else {
-            parseWord(pos).copy(kind = TokenKind.command)
+            listOf(parseWord(pos))
           }
+
+          // transform "@test" into (\ exec $0 test)
+          // transform "@`an interpolated $path`" into "(\ exec $0 (& `an interpolated` $path))"
+
+          return listOf(
+            listOf(
+              Token(value = "(", kind =  TokenKind.bracket, pos = pos),
+              Token(value = "\\", kind = TokenKind.variable, pos = pos),
+              Token(value = "exec", kind = TokenKind.variable, pos = pos),
+            ),
+            path,
+            listOf(
+              Token(value = "0", kind = TokenKind.variable, pos = pos),
+              Token(value = ")", kind = TokenKind.bracket, pos = pos),
+            ),
+          ).flatten()
         } else {
           pos.lexFail("Dangling @")
         }
       }
-      else -> parseWord(pos)
+      else -> listOf(parseWord(pos))
     }
   }
 
@@ -113,7 +129,8 @@ class Lexer(private val raw: String, private val src: String) {
     return Token(value, value.kind(), pos)
   }
 
-  private fun parseString(quoteType: Char, pos: Position): Token {
+  private fun parseString(quoteType: Char, pos: Position): List<Token> {
+    val tokens = ArrayList<Token>()
     val buff = StringBuilder()
     var hasInterpolation = false
     var workingPos = pos
@@ -167,8 +184,8 @@ class Lexer(private val raw: String, private val src: String) {
 
               while(index < maxIndex) {
                 val startCount = tokens.size
-                val nextToken = lexNext(pos())
-                tokens += nextToken
+                val nextTokens = lexNext(pos())
+                tokens += nextTokens
 
                 // TODO: this is an ugly little work around.
                 // If you have "$(thenInside "$(this will cause the outer to blowup without this check)" )"
@@ -177,7 +194,7 @@ class Lexer(private val raw: String, private val src: String) {
                 // if token size increased by more than one we know that could not have happened and so
                 // can't check for the end. It works but is very ugly and should be replaced with a better idea
                 if (tokens.size - startCount == 1) {
-                  when (nextToken.value) {
+                  when (nextTokens.last().value) {
                     "(" -> parenCount++
                     ")" -> {
                       parenCount--
@@ -203,14 +220,13 @@ class Lexer(private val raw: String, private val src: String) {
       }
     }
 
-    val finalString = Token(value = buff.toString(), kind = TokenKind.quotedString, pos = workingPos)
+    tokens +=  Token(value = buff.toString(), kind = TokenKind.quotedString, pos = workingPos)
 
-    return if (hasInterpolation) {
-      tokens += finalString
-      return Token(value = ")", kind = TokenKind.bracket, pos = pos())
-    } else {
-      finalString
+    if (hasInterpolation) {
+      tokens += Token(value = ")", kind = TokenKind.bracket, pos = pos())
     }
+
+    return tokens
   }
 
   private fun pos(): Position = Position(line = line, col = col, src = src)

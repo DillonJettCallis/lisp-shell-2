@@ -44,6 +44,13 @@ class Compiler {
 
             posList += ir.pos
           }
+          is StoreGlobalIr -> {
+            buffer += Bytecode.StoreGlobal
+            buffer.push(scope.store(ir.name))
+            scope.pop()
+
+            posList += ir.pos
+          }
           is LoadIr -> {
             if (ir.name in func.closureContext.globals) {
               buffer += Bytecode.LoadScope
@@ -52,6 +59,13 @@ class Compiler {
               buffer += Bytecode.LoadLocal
               buffer.push(scope.load(ir.name))
             }
+
+            scope.push()
+            posList += ir.pos
+          }
+          is LoadGlobalIr -> {
+            buffer += Bytecode.LoadGlobal
+            buffer.push(stringConstantMap.indexedAdd(ir.name))
 
             scope.push()
             posList += ir.pos
@@ -123,13 +137,6 @@ class Compiler {
           }
           is ReturnIr -> buffer += Bytecode.Return
           is ReturnVoidIr -> buffer += Bytecode.ReturnVoid
-          is BuildShellIr -> {
-            buffer += Bytecode.BuildShell
-            buffer.push(stringConstantMap.indexedAdd(ir.path))
-            scope.pop()
-
-            posList += ir.pos
-          }
           is BuildClosureIr -> {
             buffer += Bytecode.BuildClosure
             buffer.push(ir.paramCount)

@@ -94,10 +94,6 @@ class BytecodeFunction(
         Bytecode.CallDynamic -> buffer += "CallDynamic"
         Bytecode.Return -> buffer += "Return"
         Bytecode.ReturnVoid -> buffer += "ReturnVoid"
-        Bytecode.BuildShell -> {
-          val constIndex = code[index++]
-          buffer += "BuildShell -> $constIndex"
-        }
         Bytecode.BuildClosure -> {
           val argCount = code[index++]
 
@@ -113,6 +109,9 @@ class BytecodeFunction(
 
           buffer += "Branch -> $offset"
         }
+        Bytecode.BuildModule -> {
+          buffer += "BuildModule"
+        }
       }
     }
 
@@ -125,12 +124,6 @@ inline operator fun StringBuilder.plusAssign(str: String) {
 }
 
 typealias NativeFunction = FunctionValue
-
-class ShellFunction(val name: String) {
-  override fun toString(): String {
-    return name
-  }
-}
 class ClosureFunction(val scope: Scope, val closure: Array<Any?>, val code: BytecodeFunction)
 
 
@@ -143,8 +136,10 @@ enum class Bytecode {
   Decrement, // (int)
   Define, // (any) name const index
   Store, // (any) index
+  StoreGlobal, // (any) index of string const
   LoadLocal, // () local index
   LoadScope, // () index of string const
+  LoadGlobal, // () index of string const
   LoadRecurse, //
   LoadArgArray, //
   LoadNull, //
@@ -157,7 +152,6 @@ enum class Bytecode {
   CallDynamic, // (function, array of args)
   Return, // (any)
   ReturnVoid, // ()
-  BuildShell, // () shell const index
   BuildClosure, // () number of closure params
   BuildModule, // (function)
   Jump, // jump to index

@@ -53,6 +53,12 @@ class BytecodeInterpreter(private val shell: Command) {
 
           locals[localIndex] = value
         }
+        Bytecode.StoreGlobal -> {
+          val value = stack.pop(func, index)
+          val name = func.getString(index, body[++index])
+
+          scope.setGlobal(name, value)
+        }
         Bytecode.LoadLocal -> {
           val localIndex = body[++index]
 
@@ -62,6 +68,11 @@ class BytecodeInterpreter(private val shell: Command) {
           val name = func.getString(index, body[++index])
 
           stack.push(func, index, scope[name])
+        }
+        Bytecode.LoadGlobal -> {
+          val name = func.getString(index, body[++index])
+
+          stack.push(func, index, scope.getGlobal(name))
         }
         Bytecode.LoadNull -> stack.push(func, index, null)
         Bytecode.LoadTrue -> stack.push(func, index, true)
@@ -85,7 +96,7 @@ class BytecodeInterpreter(private val shell: Command) {
           val params = (0 until argCount).map { stack.pop(func, initIndex) }.reversed()
           val callFunc = stack.pop(func, initIndex)
 
-          stack.push(func, initIndex, callFunction(callFunc, params, scope, func, pos, initIndex))
+          stack.push(func, initIndex, callFunction(callFunc, params, func, pos, initIndex))
         }
         Bytecode.CallDynamic -> {
           val pos = func.posArray[index]
@@ -93,15 +104,10 @@ class BytecodeInterpreter(private val shell: Command) {
           val params = stack.pop(func, index) as? List<*> ?: func.fail(index, "Expected array of args passed to 'call' function")
           val callFunc = stack.pop(func, index)
 
-          stack.push(func, index, callFunction(callFunc, params, scope, func, pos, index))
+          stack.push(func, index, callFunction(callFunc, params, func, pos, index))
         }
         Bytecode.Return -> return stack.pop(func, index)
         Bytecode.ReturnVoid -> return null
-        Bytecode.BuildShell -> {
-          val path = func.getString(index, body[++index])
-
-          stack.push(func, index, ShellFunction(path))
-        }
         Bytecode.BuildClosure -> {
           val startIndex = index
           val closureSize = body[++index]
@@ -161,7 +167,7 @@ class BytecodeInterpreter(private val shell: Command) {
     func.invalidBytecode(body.size - 1)
   }
 
-  private fun callFunction(callFunc: Any?, params: List<Any?>, scope: Scope, func: BytecodeFunction, pos: Position, index: Int): Any? {
+  private fun callFunction(callFunc: Any?, params: List<Any?>, func: BytecodeFunction, pos: Position, index: Int): Any? {
     return when (callFunc) {
       is ClosureFunction -> {
         val args = Type.coerceAll(params, callFunc.code.params, pos).toTypedArray()
@@ -169,22 +175,9 @@ class BytecodeInterpreter(private val shell: Command) {
         interpret(callFunc.scope, callFunc.code, args, callFunc.closure)
       }
       is NativeFunction -> callFunc.call(Type.coerceAll(params, callFunc.params, pos), pos)
-      is ShellFunction -> {
-        val cwd = Type.coerce(Type.FileType, scope["cwd"]) as? File ?: func.fail(index, "Expected 'cwd' to be a file")
-
-        shell.execute(cwd, callFunc.name, params.map { it.stringify(func, index) })
-      }
       else -> {
         func.fail(index, "Value is not function")
       }
-    }
-  }
-
-  private fun Any?.stringify(func: BytecodeFunction, index: Int): String {
-    return when(this) {
-      null -> "null"
-      is BytecodeFunction, is ClosureFunction, is NativeFunction -> func.fail(index, "Cannot render function to string")
-      else -> toString()
     }
   }
 }

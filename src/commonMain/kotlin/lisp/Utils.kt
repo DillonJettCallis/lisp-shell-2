@@ -48,6 +48,10 @@ class IrFunctionBuilder(private val pos: Position) {
     body += LoadConstIr(value, pos)
   }
 
+  fun loadArgs() {
+    body += LoadArgArrayIr(pos)
+  }
+
   fun increment() {
     body += IncrementIr(pos)
   }
@@ -66,10 +70,6 @@ class IrFunctionBuilder(private val pos: Position) {
 
   fun returnIr() {
     body += ReturnIr(pos)
-  }
-
-  fun shell(path: String) {
-    body += BuildShellIr(path, pos)
   }
 
   fun branch(thenBlock: IrFunctionBuilder.() -> Unit, elseBlock: IrFunctionBuilder.() -> Unit) {
@@ -99,4 +99,3 @@ fun Scope.compileNative(name: String, params: MutableList<ParamMeta>, builder: I
 
   this[name] = ClosureFunction(this, emptyArray(), bytecode)
 }
-

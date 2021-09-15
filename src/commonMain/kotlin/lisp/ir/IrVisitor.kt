@@ -14,6 +14,7 @@ interface IrVisitor {
     get() = false
 
   fun visit(ir: StoreIr, access: IrVisitorAccess) {}
+  fun visit(ir: StoreGlobalIr, access: IrVisitorAccess) {}
   fun visit(ir: PopIr, access: IrVisitorAccess) {}
   fun visit(ir: DupIr, access: IrVisitorAccess) {}
   fun visit(ir: SwapIr, access: IrVisitorAccess) {}
@@ -21,6 +22,7 @@ interface IrVisitor {
   fun visit(ir: DecrementIr, access: IrVisitorAccess) {}
   fun visit(ir: DefineIr, access: IrVisitorAccess) {}
   fun visit(ir: LoadIr, access: IrVisitorAccess) {}
+  fun visit(ir: LoadGlobalIr, access: IrVisitorAccess) {}
   fun visit(ir: LoadConstIr, access: IrVisitorAccess) {}
   fun visit(ir: LoadRecurseIr, access: IrVisitorAccess) {}
   fun visit(ir: LoadArgArrayIr, access: IrVisitorAccess) {}
@@ -29,7 +31,6 @@ interface IrVisitor {
   fun visit(ir: CallDynamicIr, access: IrVisitorAccess) {}
   fun visit(ir: ReturnIr, access: IrVisitorAccess) {}
   fun visit(ir: ReturnVoidIr, access: IrVisitorAccess) {}
-  fun visit(ir: BuildShellIr, access: IrVisitorAccess) {}
   fun visit(ir: BuildClosureIr, access: IrVisitorAccess) {}
   fun visit(ir: BuildModuleIr, access: IrVisitorAccess) {}
   fun visit(ir: LoadFuncIr, access: IrVisitorAccess) {}
@@ -112,12 +113,12 @@ interface IrVisitor {
       is CallDynamicIr -> visit(ir, access)
       is ReturnIr -> visit(ir, access)
       is ReturnVoidIr -> visit(ir, access)
-      is BuildShellIr -> visit(ir, access)
       is BuildClosureIr -> visit(ir, access)
       is BuildModuleIr -> visit(ir, access)
       is BranchIr -> visit(ir, access)
       is LoopIr -> visit(ir, access)
-      else -> throw IllegalStateException("We forgot an Ir type!")
+      is StoreGlobalIr -> visit(ir, access)
+      is LoadGlobalIr -> visit(ir, access)
     }
   }
 

@@ -73,7 +73,11 @@ class IrCompiler {
   private fun internalCompile(ex: Expression, init: MutableList<Ir>) {
     when (ex) {
       is LiteralEx -> init += LoadConstIr(ex.value, ex.pos)
-      is CommandEx -> init += BuildShellIr(ex.value, ex.pos)
+      is CommandEx -> {
+        init += LoadIr("exec", ex.pos)
+        init += LoadConstIr(ex.value, ex.pos)
+        init += BuildClosureIr(1, ex.pos)
+      }
       is VariableEx -> init += LoadIr(ex.name, ex.pos)
       is OperatorEx -> init += LoadIr(ex.op, ex.pos)
       is ArrayEx -> {
@@ -127,6 +131,23 @@ class IrCompiler {
 
         // here we list all the special forms and deal with them specially
         when(funcName) {
+          "cd" -> {
+            when (tail.size) {
+              1 -> {
+                // just a string
+                val path = tail.first()
+
+                init += LoadGlobalIr("cwd", path.pos)
+                compile(path)
+
+                init += StoreGlobalIr("cwd", path.pos)
+              }
+              2 -> {
+                // a string and a function
+              }
+              else -> head.pos.compileFail("Invalid use of 'cd'. Must be either one or two arguments")
+            }
+          }
           "def" -> {
             val (nameEx, body) = tail
 

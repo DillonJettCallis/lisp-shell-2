@@ -379,6 +379,17 @@ object CoreLibrary: Library {
         return args.lastOrNull()
       }
     }
+
+    global.compileNative(
+      name = "(constructCommand)",
+      params = ArrayList()
+    ) {
+      load("exec") // [exec]
+      load("command") // [exec, command]
+      loadArgs() // [exec, command, args]
+      call(2) // [result]
+      returnIr() // []
+    }
   }
 
 
